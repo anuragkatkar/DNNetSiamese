@@ -31,3 +31,27 @@ def get_dnnet_scheduler(
         return max(0.0, 1.0 - progress)
 
     return LambdaLR(optimizer, lr_lambda=lr_lambda)
+
+
+def sync_lambda_scheduler_param_groups(scheduler: LambdaLR) -> None:
+    """
+    Keep LambdaLR internals aligned with optimizer param_groups.
+
+    This is needed when new param groups are added after scheduler creation
+    (e.g., unfreezing backbone mid-training).
+    """
+    num_opt_groups = len(scheduler.optimizer.param_groups)
+    num_sched_groups = len(scheduler.base_lrs)
+
+    if num_opt_groups <= num_sched_groups:
+        return
+
+    template_lambda = scheduler.lr_lambdas[-1]
+
+    for idx in range(num_sched_groups, num_opt_groups):
+        group_lr = scheduler.optimizer.param_groups[idx]["lr"]
+        scheduler.base_lrs.append(group_lr)
+        scheduler.lr_lambdas.append(template_lambda)
+
+        if hasattr(scheduler, "_last_lr"):
+            scheduler._last_lr.append(group_lr)

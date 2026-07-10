@@ -41,7 +41,7 @@ from data.dataset import build_kfold_loaders, DogNosePrintDataset, get_train_tra
 from data.dataset_v2 import HardNegativePairDataset
 from models.dnnet_v2 import build_model_v2
 from models.losses_v2 import TotalLossV2
-from utils.schedulers import get_dnnet_scheduler
+from utils.schedulers import get_dnnet_scheduler, sync_lambda_scheduler_param_groups
 from utils.evaluation import evaluate
 from utils.checkpoint import save_checkpoint, load_checkpoint
 
@@ -308,6 +308,7 @@ def train(fold: int = 0, resume_ckpt: Optional[str] = None):
                 "params": backbone_params,
                 "lr":     config.LR_CONTRASTIVE * 0.1,   # lower LR for pretrained
             })
+            sync_lambda_scheduler_param_groups(sched_adam)
             log.info(f"  Added backbone to Adam at LR={config.LR_CONTRASTIVE * 0.1:.1e}")
 
         # ── Hard negative mining refresh ──────────────────────────────────
