@@ -80,3 +80,11 @@ class FeatureExtractionModule(nn.Module):
         features = self.backbone(x)
         features = self.extra_net(features)
         return features
+
+    def freeze_backbone(self):
+        for param in self.backbone.parameters():
+            param.requires_grad = False
+
+    def unfreeze_backbone(self):
+        for param in self.backbone.parameters():
+            param.requires_grad = True

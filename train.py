@@ -164,6 +164,10 @@ def train(
     # ── Model ─────────────────────────────────────────────────────────────
     model = build_model(num_classes=num_classes, cfg=config).to(device)
 
+    if config.FREEZE_BACKBONE_EPOCHS > 0:
+        model.dnnet.feature_extractor.freeze_backbone()
+        log.info(f"Backbone frozen for first {config.FREEZE_BACKBONE_EPOCHS} epochs.")
+
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     log.info(f"Trainable parameters: {total_params:,}")
 
@@ -246,15 +250,17 @@ def train(
         t0 = time.time()
 
         if epoch == config.FREEZE_BACKBONE_EPOCHS and config.FREEZE_BACKBONE_EPOCHS > 0:
-            log.info("Unfreezing backbone for end-to-end fine-tuning …")
-            for param in model.dnnet.feature_extractor.backbone.parameters():
-                param.requires_grad = True
-            # Re-add backbone params to Adam so they get updated
+            log.info(f"Epoch {epoch}: unfreezing backbone for end-to-end fine-tuning …")
+            model.dnnet.feature_extractor.unfreeze_backbone()
+
+            backbone_params = list(model.dnnet.feature_extractor.backbone.parameters())
             opt_adam.add_param_group({
-                "params": [p for p in model.dnnet.feature_extractor.backbone.parameters()],
-                "lr": config.LR_CONTRASTIVE * 0.1,   # lower LR for pretrained weights
+                "params": backbone_params,
+                "lr":     config.LR_CONTRASTIVE * 0.1,  # 10x lower LR for pretrained weights
             })
-            
+            log.info(f"  Added backbone params to Adam at LR={config.LR_CONTRASTIVE * 0.1:.1e}")
+
+
         # Train
         train_metrics = train_one_epoch(
             model, train_loader, criterion,
