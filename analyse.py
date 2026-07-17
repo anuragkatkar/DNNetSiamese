@@ -98,6 +98,72 @@ def plot_similarity_matrix(embeddings, labels, label_to_name, save_path, title):
     log.info(f"  Saved similarity matrix → {save_path}")
 
 
+def plot_similarity_matrix_all(embeddings, labels, matrix_save_path, distribution_save_path, title):
+    """
+    Cosine similarity matrix using all embeddings per identity
+    """
+
+    sim_matrix = cosine_similarity(np.array(embeddings))
+
+    plt.figure(figsize=(12, 10))
+    plt.imshow(sim_matrix, cmap='coolwarm', aspect='auto')
+    plt.colorbar(label='Cosine Similarity')
+    plt.title(title, fontsize=14, fontweight='bold')
+    plt.xticks(range(len(labels)), labels, rotation=90, fontsize=8)
+    plt.yticks(range(len(labels)), labels, fontsize=8)
+    plt.tight_layout()
+    plt.savefig(matrix_save_path, dpi=150, bbox_inches="tight")
+    plt.close()
+    log.info(f"  Saved similarity matrix → {matrix_save_path}")
+
+    bins = np.linspace(0, 1.5, 100)
+    same_similarities = []
+    for i in range(len(labels)):
+        for j in range(i):
+            if labels[j] == labels[i]:
+                same_similarities.append(float(sim_matrix[j][i]))
+    same_distance = np.array([1]) - np.array(same_similarities)
+
+    different_similarities = []
+    for i in range(len(labels)):
+        for j in range(i):
+            if labels[j] != labels[i]:
+                different_similarities.append(float(sim_matrix[j][i]))
+    different_distance = np.array([1]) - np.array(different_similarities)
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    ax.hist(same_distance, bins=bins, alpha=0.5, label='Same')
+    ax.hist(different_distance, bins=bins, alpha=0.5, label='Different')
+
+    major_positions = np.linspace(0, 1.5, 16)
+    minor_positions = np.linspace(0, 1.5, 151)  # Skip major spots to keep it clean
+
+    # 2. Tell the axis exactly where to place them
+    ax.set_xticks(major_positions, minor=False)
+    ax.set_xticks(minor_positions, minor=True)
+
+    # 3. Apply your custom styling
+    ax.tick_params(axis='x', which='major', length=10, width=2, labelsize=12)
+    ax.tick_params(axis='x', which='minor', length=5, width=1, labelrotation=90)
+
+    ax.axvline(x=0.15, color='red', linestyle=':', linewidth=1.5, label='Threshold')
+    ax.text(x=0.16, y=270, s='Threshold', color='red', rotation=90, va='center')
+    ax.text(x=0.15, y=-20, s='0.15', color='red', rotation=90, va='center', ha='center')
+
+    ax.legend()
+    plt.title("Similarity Distance Distribution\nSiamese Model")
+    plt.tight_layout()
+    plt.savefig(distribution_save_path, dpi=150, bbox_inches="tight")
+    plt.close()
+
+    log.info(f"    Highest Distance of two different IDs: {different_distance.max():.2f}")
+    log.info(f"    Lowest Distance of two different IDs: {different_distance.min():.2f}")
+    log.info(f"    Highest Distance of same IDs: {same_distance.max():.2f}")
+    log.info(f"    Lowest Distance of same IDs: {same_distance.min():.2f}")
+    log.info(f"  Saved similarity distribution → {distribution_save_path}")
+
+
 # ── t-SNE + PCA side-by-side ─────────────────────────────────────────────────
 
 def plot_tsne_pca(embeddings, labels, label_to_name, save_path, title_prefix):
@@ -108,7 +174,7 @@ def plot_tsne_pca(embeddings, labels, label_to_name, save_path, title_prefix):
     str_labels = np.array([label_to_name.get(int(l), str(l)) for l in labels])
     unique_names = list(dict.fromkeys(str_labels))   # ordered unique
     n = len(unique_names)
-    cmap = cm.get_cmap("tab20", min(n, 20))
+    cmap = matplotlib.pyplot.get_cmap("tab20", min(n, 20))
     colour_map = {name: cmap(i % 20) for i, name in enumerate(unique_names)}
 
     perplexity = min(30, len(embeddings) - 1)
@@ -335,6 +401,13 @@ def analyse_split(
         title     = f"Embedding Similarity Matrix — Fold {fold} [{split_name}]",
     )
 
+    plot_similarity_matrix_all(
+        embeddings, labels,
+        matrix_save_path = os.path.join(out, "similarity_matrix_all.png"),
+        distribution_save_path = os.path.join(out, "similarity_distribution.png"),
+        title     = f"Embedding Similarity Matrix — Fold {fold} [{split_name}]",
+    )
+
     # ── t-SNE + PCA ───────────────────────────────────────────────────────
     plot_tsne_pca(
         embeddings, labels, label_to_name,
@@ -503,6 +576,14 @@ def cmd_embed(args):
             save_path = os.path.join(args.output_dir, "similarity_matrix.png"),
             title     = "Embedding Similarity Matrix",
         )
+
+        plot_similarity_matrix_all(
+            embeddings, labels,
+            matrix_save_path = os.path.join(args.output_dir, "similarity_matrix_all.png"),
+            distribution_save_path = os.path.join(args.output_dir, "similarity_distribution.png"),
+            title     = f"Embedding Similarity Matrix",
+        )
+
         plot_tsne_pca(
             embeddings, labels_arr, label_to_name,
             save_path    = os.path.join(args.output_dir, "tsne_pca.png"),
