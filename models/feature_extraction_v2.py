@@ -134,7 +134,7 @@ class TinyViTEmbeddingHead(nn.Module):
             nn.ReLU(inplace=True),
             nn.Dropout(p=0.3),
             nn.Linear(hidden, embedding_dim, bias=False),
-            nn.BatchNorm1d(embedding_dim),
+            # nn.BatchNorm1d(embedding_dim),
         )
         self.embedding_dim = embedding_dim
 
