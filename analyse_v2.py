@@ -1,17 +1,17 @@
 """
-analyse.py  –  Post-training analysis for DNNet
+analyse_v2.py  –  Post-training analysis for DNNetV2
 
 Usage
 -----
 # Full analysis on both train and val splits for a fold
-python analyse.py eval \
+python analyse_v2.py eval \
     --checkpoint checkpoints/fold_0/best_model.pth \
     --data_root  ./dataset \
     --fold       0 \
     --output_dir ./analysis
 
 # Get embeddings for every image in a folder
-python analyse.py embed \
+python analyse_v2.py embed \
     --checkpoint checkpoints/fold_0/best_model.pth \
     --image_dir  ./my_nose_images \
     --output_dir ./analysis
@@ -38,7 +38,7 @@ from data.dataset import (
     get_val_transforms,
     _scan_dataset,
 )
-from models.dnnet import build_model
+from models.dnnet_v2 import build_model_v2
 from utils.checkpoint import load_checkpoint
 from utils.evaluation import (
     extract_embeddings,
@@ -59,7 +59,6 @@ log = logging.getLogger(__name__)
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.cm as cm
 from sklearn.metrics import confusion_matrix as sk_confusion_matrix
 from sklearn.metrics import silhouette_score
 from sklearn.metrics.pairwise import cosine_similarity
@@ -96,7 +95,6 @@ def plot_similarity_matrix(embeddings, labels, label_to_name, save_path, title):
     plt.savefig(save_path, dpi=150, bbox_inches="tight")
     plt.close()
     log.info(f"  Saved similarity matrix → {save_path}")
-
 
 def plot_similarity_matrix_all(embeddings, labels, matrix_save_path, distribution_save_path, title):
     """
@@ -162,7 +160,6 @@ def plot_similarity_matrix_all(embeddings, labels, matrix_save_path, distributio
     log.info(f"    Highest Distance of same IDs: {same_distance.max():.2f}")
     log.info(f"    Lowest Distance of same IDs: {same_distance.min():.2f}")
     log.info(f"  Saved similarity distribution → {distribution_save_path}")
-
 
 # ── t-SNE + PCA side-by-side ─────────────────────────────────────────────────
 
@@ -326,17 +323,24 @@ def load_model(checkpoint_path: str, num_classes: int, device: torch.device):
     ckpt  = torch.load(checkpoint_path, map_location=device, weights_only=False)
     state = ckpt["model_state"]
 
-    embedding_dim    = state["dnnet.attention.fc.weight"].shape[0]
-    num_classes_ckpt = state["arcface_head.weight"].shape[0]
+    # Infer architecture-dependent dimensions from checkpoint tensors.
+    # DNNetV2 classifier weight shape is (num_classes, embedding_dim).
+    if "magface_head.weight" not in state:
+        raise KeyError(
+            "Expected DNNetV2 checkpoint key 'magface_head.weight' not found. "
+            "Please pass a DNNetV2 checkpoint from train_v2.py."
+        )
+
+    num_classes_ckpt, embedding_dim = state["magface_head.weight"].shape
 
     _orig = config.EMBEDDING_DIM
     config.EMBEDDING_DIM = embedding_dim
-    model = build_model(num_classes=num_classes_ckpt, cfg=config).to(device)
+    model = build_model_v2(num_classes=num_classes_ckpt, cfg=config).to(device)
     config.EMBEDDING_DIM = _orig
 
     model.load_state_dict(state)
     model.eval()
-    log.info(f"  Checkpoint: embedding_dim={embedding_dim}, num_classes={num_classes_ckpt}")
+    log.info(f"  V2 checkpoint: embedding_dim={embedding_dim}, num_classes={num_classes_ckpt}")
     return model
 
 
@@ -589,6 +593,7 @@ def cmd_embed(args):
             save_path    = os.path.join(args.output_dir, "tsne_pca.png"),
             title_prefix = "Embedded Images",
         )
+        
         fpr, tpr, auc_score = compute_roc(embeddings, labels_arr)
         plot_roc(fpr, tpr, auc_score,
                  save_path=os.path.join(args.output_dir, "roc.png"))
@@ -604,7 +609,7 @@ def cmd_embed(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="DNNet post-training analysis",
+        description="DNNetV2 post-training analysis",
         formatter_class=argparse.RawTextHelpFormatter,
     )
     sub = parser.add_subparsers(dest="mode", required=True)

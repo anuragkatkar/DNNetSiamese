@@ -31,7 +31,7 @@ from configs import config
 from data.dataset import build_kfold_loaders
 from models.dnnet import build_model
 from models.losses import TotalLoss
-from utils.schedulers import get_dnnet_scheduler
+from utils.schedulers import get_dnnet_scheduler, sync_lambda_scheduler_param_groups
 from utils.evaluation import evaluate
 from utils.checkpoint import save_checkpoint, load_checkpoint
 
@@ -258,6 +258,7 @@ def train(
                 "params": backbone_params,
                 "lr":     config.LR_CONTRASTIVE * 0.1,  # 10x lower LR for pretrained weights
             })
+            sync_lambda_scheduler_param_groups(sched_adam)
             log.info(f"  Added backbone params to Adam at LR={config.LR_CONTRASTIVE * 0.1:.1e}")
 
 
