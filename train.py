@@ -96,6 +96,13 @@ def train_one_epoch(
                 anchor_class  = anchor_cls,
                 pair_class    = pair_cls,
             )
+        
+        if not torch.isfinite(l_total):
+            log.warning(f"  NaN/Inf loss at epoch {epoch} batch {batch_idx} — skipping batch")
+            opt_adam.zero_grad()
+            opt_sgd.zero_grad()
+            scaler.update()
+            continue
 
         opt_adam.zero_grad()
         opt_sgd.zero_grad()
@@ -164,7 +171,7 @@ def train(
 
     # ── Model ─────────────────────────────────────────────────────────────
     model = build_model(num_classes=num_classes, cfg=config).to(device)
-    scaler = GradScaler() 
+    scaler = GradScaler(init_scale=1024.0) 
 
     if config.FREEZE_BACKBONE_EPOCHS > 0:
         model.dnnet.feature_extractor.freeze_backbone()
@@ -258,7 +265,7 @@ def train(
             backbone_params = list(model.dnnet.feature_extractor.backbone.parameters())
             opt_adam.add_param_group({
                 "params": backbone_params,
-                "lr":     config.LR_CONTRASTIVE * 0.1,  # 10x lower LR for pretrained weights
+                "lr":     config.LR_CONTRASTIVE * 0.01,  # 10x lower LR for pretrained weights
             })
             sync_lambda_scheduler_param_groups(sched_adam)
             log.info(f"  Added backbone params to Adam at LR={config.LR_CONTRASTIVE * 0.1:.1e}")
