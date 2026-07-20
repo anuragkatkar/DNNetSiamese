@@ -113,7 +113,7 @@ def train_one_epoch(
         pair_bin   = pair_bin.to(device,   non_blocking=True)
 
         # ── Forward ───────────────────────────────────────────────────────
-        with autocast():
+        with autocast(device_type='cuda'):
             (anchor_emb, pair_emb,
              anchor_cos, pair_cos,
              anchor_mag, pair_mag) = model(anchor_img, pair_img)
