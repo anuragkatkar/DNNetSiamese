@@ -22,6 +22,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
+from torch.amp import autocast, GradScaler
 
 # ── Local imports ─────────────────────────────────────────────────────────────
 ROOT = Path(__file__).resolve().parent
@@ -43,8 +44,8 @@ def set_seed(seed: int = config.SEED):
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark     = False
+    torch.backends.cudnn.deterministic = False
+    torch.backends.cudnn.benchmark     = True
 
 
 # ── Logging setup ─────────────────────────────────────────────────────────────
@@ -67,6 +68,7 @@ def train_one_epoch(
     opt_sgd:        torch.optim.Optimizer,
     device:         torch.device,
     epoch:          int,
+    scaler,
     wandb_run=None,
 ) -> dict:
     model.train()
@@ -82,29 +84,28 @@ def train_one_epoch(
         pair_bin    = pair_bin.to(device,   non_blocking=True)
 
         # ── Forward ───────────────────────────────────────────────────────
-        anchor_emb, pair_emb, anchor_logits, pair_logits = model(anchor_img, pair_img)
+        with autocast():
+            anchor_emb, pair_emb, anchor_logits, pair_logits = model(anchor_img, pair_img)
 
-        # ── Loss (eq. 9) ──────────────────────────────────────────────────
-        l_total, l_con, l_arc_a, l_arc_p = criterion(
-            anchor_emb    = anchor_emb,
-            pair_emb      = pair_emb,
-            pair_labels   = pair_bin,
-            anchor_logits = anchor_logits,
-            pair_logits   = pair_logits,
-            anchor_class  = anchor_cls,
-            pair_class    = pair_cls,
-        )
+            l_total, l_con, l_arc_a, l_arc_p = criterion(
+                anchor_emb    = anchor_emb,
+                pair_emb      = pair_emb,
+                pair_labels   = pair_bin,
+                anchor_logits = anchor_logits,
+                pair_logits   = pair_logits,
+                anchor_class  = anchor_cls,
+                pair_class    = pair_cls,
+            )
 
-        # ── Backward ──────────────────────────────────────────────────────
         opt_adam.zero_grad()
         opt_sgd.zero_grad()
-        l_total.backward()
-
-        # Gradient clipping for stability
+        scaler.scale(l_total).backward()
+        scaler.unscale_(opt_adam)
+        scaler.unscale_(opt_sgd)
         nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
-
-        opt_adam.step()
-        opt_sgd.step()
+        scaler.step(opt_adam)
+        scaler.step(opt_sgd)
+        scaler.update()
 
         # ── Accumulate ────────────────────────────────────────────────────
         total_loss  += l_total.item()
@@ -163,6 +164,7 @@ def train(
 
     # ── Model ─────────────────────────────────────────────────────────────
     model = build_model(num_classes=num_classes, cfg=config).to(device)
+    scaler = GradScaler() 
 
     if config.FREEZE_BACKBONE_EPOCHS > 0:
         model.dnnet.feature_extractor.freeze_backbone()
@@ -265,7 +267,7 @@ def train(
         # Train
         train_metrics = train_one_epoch(
             model, train_loader, criterion,
-            opt_adam, opt_sgd, device, epoch, wandb_run
+            opt_adam, opt_sgd, device, epoch, scaler, wandb_run
         )
 
         # LR step
