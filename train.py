@@ -84,7 +84,7 @@ def train_one_epoch(
         pair_bin    = pair_bin.to(device,   non_blocking=True)
 
         # ── Forward ───────────────────────────────────────────────────────
-        with autocast():
+        with autocast(device_type='cuda'):
             anchor_emb, pair_emb, anchor_logits, pair_logits = model(anchor_img, pair_img)
 
             l_total, l_con, l_arc_a, l_arc_p = criterion(
