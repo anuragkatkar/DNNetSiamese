@@ -32,6 +32,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
+from torch.amp import GradScaler, autocast
+
 
 ROOT = Path(__file__).resolve().parent
 sys.path.append(str(ROOT))
@@ -54,15 +56,15 @@ FREEZE_BACKBONE_EPOCHS = getattr(config, "FREEZE_BACKBONE_EPOCHS", 30)
 TINYVIT_MODEL          = getattr(config, "TINYVIT_MODEL", "tiny_vit_21m_224")
 HARD_NEG_WARMUP        = 5     # epochs before hard mining starts
 HARD_NEG_TOPK          = 10    # top-K hard negatives per anchor
-MINING_REFRESH_EVERY   = 1     # refresh hard negative index every N epochs
+MINING_REFRESH_EVERY   = 3     # refresh hard negative index every N epochs
 
 # MagFace hyperparameters
 MAGFACE_SCALE   = 64.0
 MAGFACE_L_M     = 0.45
 MAGFACE_U_M     = 0.80
-MAGFACE_L_A     = 10.0
-MAGFACE_U_A     = 110.0
-MAGFACE_LAMBDA  = 35.0
+MAGFACE_L_A     = 5.0
+MAGFACE_U_A     = 150.0
+MAGFACE_LAMBDA  = 0.01
 FOCAL_GAMMA     = 2.0
 
 
@@ -73,8 +75,8 @@ def set_seed(seed: int = config.SEED):
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark     = False
+    torch.backends.cudnn.deterministic = False  # allow benchmark
+    torch.backends.cudnn.benchmark     = True
 
 
 logging.basicConfig(
@@ -95,6 +97,7 @@ def train_one_epoch(
     opt_sgd,
     device,
     epoch: int,
+    scaler,
     wandb_run=None,
 ) -> dict:
     model.train()
@@ -110,30 +113,34 @@ def train_one_epoch(
         pair_bin   = pair_bin.to(device,   non_blocking=True)
 
         # ── Forward ───────────────────────────────────────────────────────
-        (anchor_emb, pair_emb,
-         anchor_cos, pair_cos,
-         anchor_mag, pair_mag) = model(anchor_img, pair_img)
+        with autocast(device_type='cuda'):
+            (anchor_emb, pair_emb,
+             anchor_cos, pair_cos,
+             anchor_mag, pair_mag) = model(anchor_img, pair_img)
 
         # ── Loss ──────────────────────────────────────────────────────────
-        l_total, l_con, l_mag_a, l_mag_p = criterion(
-            anchor_emb    = anchor_emb,
-            pair_emb      = pair_emb,
-            pair_labels   = pair_bin,
-            anchor_cosine = anchor_cos,
-            pair_cosine   = pair_cos,
-            anchor_mag    = anchor_mag,
-            pair_mag      = pair_mag,
-            anchor_class  = anchor_cls,
-            pair_class    = pair_cls,
-        )
+            l_total, l_con, l_mag_a, l_mag_p = criterion(
+                anchor_emb    = anchor_emb,
+                pair_emb      = pair_emb,
+                pair_labels   = pair_bin,
+                anchor_cosine = anchor_cos,
+                pair_cosine   = pair_cos,
+                anchor_mag    = anchor_mag,
+                pair_mag      = pair_mag,
+                anchor_class  = anchor_cls,
+                pair_class    = pair_cls,
+            )
 
         # ── Backward ──────────────────────────────────────────────────────
         opt_adam.zero_grad()
         opt_sgd.zero_grad()
-        l_total.backward()
+        scaler.scale(l_total).backward()
+        scaler.unscale_(opt_adam)
+        scaler.unscale_(opt_sgd)
         nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
-        opt_adam.step()
-        opt_sgd.step()
+        scaler.step(opt_adam)
+        scaler.step(opt_sgd)
+        scaler.update()
 
         total_loss += l_total.item()
         con_loss   += l_con.item()
@@ -146,7 +153,8 @@ def train_one_epoch(
                 f"loss={l_total.item():.4f}  con={l_con.item():.4f}  "
                 f"mag_a={l_mag_a.item():.4f}  mag_p={l_mag_p.item():.4f}"
             )
-
+    print(f"  mag range: [{anchor_mag.min():.2f}, {anchor_mag.max():.2f}]  mean={anchor_mag.mean():.2f}")
+    
     avg = lambda x: x / n_batches
     metrics = {
         "train/loss_total":    avg(total_loss),
@@ -168,6 +176,7 @@ def train_one_epoch(
 
 def train(fold: int = 0, resume_ckpt: Optional[str] = None):
     set_seed(config.SEED)
+    torch.backends.cudnn.benchmark = True
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     log.info(f"Device: {device}  |  DNNetV2  |  Fold: {fold}")
@@ -179,7 +188,7 @@ def train(fold: int = 0, resume_ckpt: Optional[str] = None):
         fold        = fold,
         num_folds   = config.NUM_FOLDS,
         batch_size  = config.BATCH_SIZE,
-        num_workers = 0,
+        num_workers = 2,
         seed        = config.SEED,
     )
     log.info(f"Number of classes: {num_classes}")
@@ -202,13 +211,15 @@ def train(fold: int = 0, resume_ckpt: Optional[str] = None):
         hard_dataset,
         batch_size  = config.BATCH_SIZE,
         shuffle     = True,
-        num_workers = 0,
+        num_workers = 2,
         drop_last   = True,
     )
 
     # ── Model ─────────────────────────────────────────────────────────────
     log.info(f"Building DNNetV2 with {TINYVIT_MODEL} backbone …")
     model = build_model_v2(num_classes=num_classes, cfg=config).to(device)
+
+    scaler = GradScaler()
 
     # Phase 1: freeze backbone
     if FREEZE_BACKBONE_EPOCHS > 0:
@@ -322,7 +333,7 @@ def train(fold: int = 0, resume_ckpt: Optional[str] = None):
         # ── Train ─────────────────────────────────────────────────────────
         train_metrics = train_one_epoch(
             model, hard_loader, criterion,
-            opt_adam, opt_sgd, device, epoch, wandb_run,
+            opt_adam, opt_sgd, device, epoch, scaler, wandb_run,
         )
 
         sched_adam.step()

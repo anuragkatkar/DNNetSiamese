@@ -27,7 +27,7 @@ EXTRA_CHANNELS  = [512, 256]           # two extra conv blocks after ResNet
 FREEZE_BACKBONE_EPOCHS = 30            # set 0 to disable (paper behaviour)
 
 # ── Training ──────────────────────────────────────────────────────────────────
-BATCH_SIZE      = 16                   # paper
+BATCH_SIZE      = 32                   # paper
 NUM_EPOCHS      = 100                  # paper
 PATIENCE        = 10                   # early stop after N non-improving validations (0 disables)
 LR_CONTRASTIVE  = 5e-5                 # paper: initial LR 0.0001

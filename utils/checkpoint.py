@@ -43,7 +43,8 @@ def save_checkpoint(
     if is_best:
         best_path = os.path.join(checkpoint_dir, "best_model.pth")
         torch.save(state, best_path)
-        print(f"  ✓ New best model saved → {best_path}  (rank_1={metrics.get('rank_1', 0):.3f}%)")
+        rank1_val = metrics.get("val/rank_1", metrics.get("rank_1", 0))
+        print(f"  ✓ New best model saved → {best_path}  (rank_1={rank1_val:.3f}%)")
 
     return path
 
