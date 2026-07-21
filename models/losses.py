@@ -100,7 +100,7 @@ class ArcFaceLoss(nn.Module):
     ) -> torch.Tensor:
         # ── Add angular margin to the target class angle ──────────────────
         # cos(θ_yi + m) = cos θ_yi · cos m  − sin θ_yi · sin m
-        cos_theta    = cosine_logits.clamp(-1 + 1e-7, 1 - 1e-7)
+        cos_theta = cosine_logits.float().clamp(-1 + 1e-4, 1 - 1e-4)
         theta        = torch.acos(cos_theta)
         cos_m        = math.cos(self.margin)
         sin_m        = math.sin(self.margin)

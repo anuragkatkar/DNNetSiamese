@@ -35,11 +35,6 @@ def _worker_init_fn(worker_id):
 def get_train_transforms(image_size: int = config.IMAGE_SIZE) -> T.Compose:
     return T.Compose([
         T.Resize((image_size, image_size)),
-        T.RandomHorizontalFlip(p=0.5),
-        T.RandomVerticalFlip(p=0.2),
-        T.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.2, hue=0.05),
-        T.RandomRotation(degrees=15),
-        T.RandomAffine(degrees=0, translate=(0.05, 0.05)),
         T.ToTensor(),
         T.Normalize(mean=[0.485, 0.456, 0.406],
                     std=[0.229, 0.224, 0.225]),
