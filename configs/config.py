@@ -46,7 +46,7 @@ LR_ARCFACE      = 1e-4
 LR_WARMUP_EPOCHS = 5
 
 # ── Loss hyperparameters ───────────────────────────────────────────────────────
-CONTRASTIVE_MARGIN = 2.0               # paper: m=2 for contrastive loss
+CONTRASTIVE_MARGIN = 1.0               # paper: m=2 for contrastive loss
 ARCFACE_SCALE      = 30.0             # paper: s=30
 ARCFACE_MARGIN     = 0.5              # paper: m=0.5
 

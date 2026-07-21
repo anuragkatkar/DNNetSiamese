@@ -149,5 +149,5 @@ class TotalLoss(nn.Module):
         l_con = self.contrastive(anchor_emb, pair_emb, pair_labels)
         l_arc_anchor = self.arcface(anchor_logits, anchor_class)
         l_arc_pair   = self.arcface(pair_logits,   pair_class)
-        l_total      = l_con + 0.5 * (l_arc_anchor + l_arc_pair)
+        l_total      = 0.5 * l_con + 0.5 * (l_arc_anchor + l_arc_pair)
         return l_total, l_con, l_arc_anchor, l_arc_pair
