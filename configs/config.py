@@ -31,6 +31,7 @@ BATCH_SIZE      = 16                   # paper
 NUM_EPOCHS      = 100                  # paper
 PATIENCE        = 10                   # early stop after N non-improving validations (0 disables)
 LR_CONTRASTIVE  = 5e-5                 # paper: initial LR 0.0001
+USE_AMP = False
 
 # Adam for contrastive/feature branch (paper: β1=0.5, β2=0.999)
 ADAM_BETA1      = 0.5

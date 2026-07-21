@@ -84,7 +84,7 @@ def train_one_epoch(
         pair_bin    = pair_bin.to(device,   non_blocking=True)
 
         # ── Forward ───────────────────────────────────────────────────────
-        with autocast(device_type='cuda'):
+        with autocast(device_type="cuda" if config.USE_AMP else "cpu", enabled=config.USE_AMP):
             anchor_emb, pair_emb, anchor_logits, pair_logits = model(anchor_img, pair_img)
 
             l_total, l_con, l_arc_a, l_arc_p = criterion(
@@ -101,18 +101,24 @@ def train_one_epoch(
             log.warning(f"  NaN/Inf loss at epoch {epoch} batch {batch_idx} — skipping batch")
             opt_adam.zero_grad()
             opt_sgd.zero_grad()
-            scaler.update()
             continue
 
         opt_adam.zero_grad()
         opt_sgd.zero_grad()
-        scaler.scale(l_total).backward()
-        scaler.unscale_(opt_adam)
-        scaler.unscale_(opt_sgd)
-        nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
-        scaler.step(opt_adam)
-        scaler.step(opt_sgd)
-        scaler.update()
+        
+        if config.USE_AMP:
+            scaler.scale(l_total).backward()
+            scaler.unscale_(opt_adam)
+            scaler.unscale_(opt_sgd)
+            nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
+            scaler.step(opt_adam)
+            scaler.step(opt_sgd)
+            scaler.update()
+        else:
+            l_total.backward()
+            nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
+            opt_adam.step()
+            opt_sgd.step()
 
         # ── Accumulate ────────────────────────────────────────────────────
         total_loss  += l_total.item()
@@ -171,7 +177,8 @@ def train(
 
     # ── Model ─────────────────────────────────────────────────────────────
     model = build_model(num_classes=num_classes, cfg=config).to(device)
-    scaler = GradScaler(init_scale=1024.0) 
+    
+    scaler = GradScaler("cuda", init_scale=1024.0) if config.USE_AMP else None
 
     if config.FREEZE_BACKBONE_EPOCHS > 0:
         model.dnnet.feature_extractor.freeze_backbone()
