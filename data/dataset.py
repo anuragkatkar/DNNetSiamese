@@ -249,8 +249,6 @@ def build_data_loaders(
     train_samples = [s for s in train__samples if s[1] in train_classes]
     val_samples   = [s for s in val__samples if s[1] in val_classes]
 
-    print(train_class_array, val_class_array)
-
     print(
         f"Train: {len(train_samples)} imgs / {len(train_classes)} dogs | "
         f"Val:   {len(val_samples)} imgs / {len(val_classes)} dogs"
