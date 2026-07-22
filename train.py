@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parent
 sys.path.append(str(ROOT))
 
 from configs import config
-from data.dataset import build_kfold_loaders
+from data.dataset import build_data_loaders
 from models.dnnet import build_model
 from models.losses import TotalLoss
 from utils.schedulers import get_dnnet_scheduler, sync_lambda_scheduler_param_groups
@@ -165,13 +165,11 @@ def train(
 
     # ── Data ──────────────────────────────────────────────────────────────
     log.info(f"Loading dataset from: {config.DATA_ROOT}  (fold {fold}/{config.NUM_FOLDS-1})")
-    train_loader, val_loader, num_classes = build_kfold_loaders(
-        root       = config.DATA_ROOT,
-        fold       = fold,
-        num_folds  = config.NUM_FOLDS,
-        batch_size = config.BATCH_SIZE,
-        num_workers= config.NUM_WORKERS,
-        seed       = config.SEED,
+    train_loader, val_loader, num_classes = build_data_loaders(
+        train_data_path     = config.DATA_ROOT,
+        val_data_path       = config.DATA_ROOT,
+        batch_size          = config.BATCH_SIZE,
+        num_workers         = config.NUM_WORKERS,
     )
     log.info(f"Number of classes (dog IDs): {num_classes}")
 
