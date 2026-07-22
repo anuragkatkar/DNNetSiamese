@@ -164,7 +164,7 @@ def train(
     log.info(f"Device: {device}")
 
     # ── Data ──────────────────────────────────────────────────────────────
-    log.info(f"Loading dataset from: {config.DATA_ROOT}  (fold {fold}/{config.NUM_FOLDS-1})")
+    log.info(f"Loading dataset from: {config.DATA_TRAIN}  (fold {fold}/{config.NUM_FOLDS-1})")
     train_loader, val_loader, num_classes = build_data_loaders(
         train_data_path     = config.DATA_TRAIN,
         val_data_path       = config.DATA_VAL,
