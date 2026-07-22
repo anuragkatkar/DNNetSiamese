@@ -206,8 +206,8 @@ def save_split_csv(
         print(f"  Saved {split_name} split ({len(split_samples)} images) → {csv_path}")
 
 def build_data_loaders(
-    train_data_path: str    = config.DATA_ROOT,
-    val_data_path: str      = config.DATA_ROOT,
+    train_data_path: str    = config.DATA_TRAIN,
+    val_data_path: str      = config.DATA_VAL,
     batch_size: int         = config.BATCH_SIZE,
     num_workers: int        = config.NUM_WORKERS,
 ) -> Tuple[DataLoader, DataLoader, int]:
@@ -285,5 +285,3 @@ def build_data_loaders(
     )
 
     return train_loader, val_loader, train_num_classes
-
-build_data_loaders(train_data_path='../../../pet-care-local/aimodel/data/dog-burst/split-all/train', val_data_path='../../../pet-care-local/aimodel/data/dog-burst/split-all/train')

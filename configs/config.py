@@ -8,9 +8,10 @@ All hyperparameters are taken directly from the paper:
 import os
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
-DATA_ROOT       = "./split/train"          # root dir: each subdir = one dog ID
-CHECKPOINT_DIR  = "./checkpoints"
-LOG_DIR         = "./logs"
+DATA_TRAIN       = "./split/train"          # root dir: each subdir = one dog ID
+DATA_VAL         = "./split/val"          # root dir: each subdir = one dog ID
+CHECKPOINT_DIR   = "./checkpoints"
+LOG_DIR          = "./logs"
 
 # ── Dataset ───────────────────────────────────────────────────────────────────
 IMAGE_SIZE      = 256                  # paper: resize to 256×256
