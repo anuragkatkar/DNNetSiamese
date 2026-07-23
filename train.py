@@ -87,7 +87,7 @@ def train_one_epoch(
         with autocast(device_type="cuda" if config.USE_AMP else "cpu", enabled=config.USE_AMP):
             anchor_emb, pair_emb, anchor_logits, pair_logits = model(anchor_img, pair_img)
 
-            l_total, l_con, l_arc_a, l_arc_p = criterion(
+            l_total, l_con, l_cosine, l_arc_a, l_arc_p = criterion(
                 anchor_emb    = anchor_emb,
                 pair_emb      = pair_emb,
                 pair_labels   = pair_bin,
@@ -123,6 +123,7 @@ def train_one_epoch(
         # ── Accumulate ────────────────────────────────────────────────────
         total_loss  += l_total.item()
         con_loss    += l_con.item()
+        cos_loss    += l_cosine.item()
         arc_a_loss  += l_arc_a.item()
         arc_p_loss  += l_arc_p.item()
 
@@ -131,6 +132,7 @@ def train_one_epoch(
                 f"  Epoch {epoch:03d} [{batch_idx+1:4d}/{n_batches}] "
                 f"loss={l_total.item():.4f}  "
                 f"con={l_con.item():.4f}  "
+                f"cosine={l_cosine.item():.4f}  "
                 f"arc_a={l_arc_a.item():.4f}  "
                 f"arc_p={l_arc_p.item():.4f}"
             )
@@ -188,8 +190,12 @@ def train(
     # ── Loss ──────────────────────────────────────────────────────────────
     criterion = TotalLoss(
         contrastive_margin = config.CONTRASTIVE_MARGIN,
+        cosine_margin      = config.COSINE_MARGIN,
         arcface_scale      = config.ARCFACE_SCALE,
         arcface_margin     = config.ARCFACE_MARGIN,
+        use_con            = config.USE_CONTRASTIVE,
+        use_cosine         = config.USE_COSINE,
+        use_arcface        = config.USE_ARCFACE,
     )
 
     # ── Optimisers (paper: Adam for feature branch, SGD for ArcFace head) ─

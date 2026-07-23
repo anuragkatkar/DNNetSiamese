@@ -119,6 +119,38 @@ class ArcFaceLoss(nn.Module):
         loss   = self.ce(output, labels)
         return loss
 
+class CosineDistanceLoss(nn.Module):
+    """
+    Cosine Distance Loss
+    """
+
+    def __init__(self, margin: float = 1.5):
+        super().__init__()
+        self.margin = margin
+
+    def forward(
+            self,
+            anchor_embedding: torch.Tensor,
+            pair_embedding: torch.Tensor,
+            label: torch.Tensor
+
+    ) -> torch.Tensor:
+        anchor_norm = torch.Tensor.norm(anchor_embedding, p=2, dim=1)
+        pair_norm = torch.Tensor.norm(pair_embedding, p=2, dim=1)
+
+        dotproduct = torch.Tensor.sum(anchor_embedding * pair_embedding, dim=1)
+
+        cosine_similarity =  dotproduct/anchor_norm/pair_norm
+        cosine_distance = torch.Tensor([1]) - cosine_similarity
+
+        pos_loss = label * cosine_distance
+        neg_loss = (1 - label) * (F.relu(self.margin - cosine_distance))
+
+        loss = pos_loss + neg_loss
+
+        return loss
+
+
 
 class TotalLoss(nn.Module):
     """
@@ -129,12 +161,20 @@ class TotalLoss(nn.Module):
     def __init__(
         self,
         contrastive_margin: float = 2.0,
+        cosine_margin:      float = 1.5,
         arcface_scale:      float = 30.0,
         arcface_margin:     float = 0.5,
+        use_con:            bool  = True,
+        use_cosine:         bool  = True,
+        use_arcface:        bool  = True,
     ):
         super().__init__()
-        self.contrastive = ContrastiveLoss(margin=contrastive_margin)
-        self.arcface     = ArcFaceLoss(scale=arcface_scale, margin=arcface_margin)
+        self.contrastive    = ContrastiveLoss(margin=contrastive_margin)
+        self.cosine         = CosineDistanceLoss(margin=cosine_margin)
+        self.arcface        = ArcFaceLoss(scale=arcface_scale, margin=arcface_margin)
+        self.use_con        = use_con
+        self.use_cosine     = use_cosine
+        self.use_arcface    = use_arcface
 
     def forward(
         self,
@@ -147,7 +187,8 @@ class TotalLoss(nn.Module):
         pair_class:    torch.Tensor,   # (B,) true class index for pair
     ) -> tuple:
         l_con = self.contrastive(anchor_emb, pair_emb, pair_labels)
+        l_cosine = self.cosine(anchor_emb, pair_emb, pair_labels)
         l_arc_anchor = self.arcface(anchor_logits, anchor_class)
         l_arc_pair   = self.arcface(pair_logits,   pair_class)
-        l_total      = 0.5 * l_con + 0.5 * (l_arc_anchor + l_arc_pair)
-        return l_total, l_con, l_arc_anchor, l_arc_pair
+        l_total      = self.use_con*l_con + self.use_cosine*l_cosine + self.use_arcface(l_arc_anchor + l_arc_pair)
+        return l_total, l_con, l_cosine, l_arc_anchor, l_arc_pair

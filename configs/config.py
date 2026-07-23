@@ -46,8 +46,14 @@ LR_ARCFACE      = 1e-4
 # LR schedule: fixed for first 100 epochs, linear decay to 0 for next 100
 LR_WARMUP_EPOCHS = 5
 
+# ── Loss Functions ────────────────────────────────────────────────────────────
+USE_CONTRASTIVE = True
+USE_COSINE      = True
+USE_ARCFACE     = True
+
 # ── Loss hyperparameters ───────────────────────────────────────────────────────
 CONTRASTIVE_MARGIN = 1.0               # paper: m=2 for contrastive loss
+COSINE_MARGIN = 1.5
 ARCFACE_SCALE      = 30.0             # paper: s=30
 ARCFACE_MARGIN     = 0.5              # paper: m=0.5
 
