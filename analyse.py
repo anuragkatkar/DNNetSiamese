@@ -33,7 +33,7 @@ sys.path.append(str(ROOT))
 
 from configs import config
 from data.dataset import (
-    build_kfold_loaders,
+    build_data_loaders,
     DogNosePrintDataset,
     get_val_transforms,
     _scan_dataset,
@@ -612,7 +612,7 @@ if __name__ == "__main__":
     ep = sub.add_parser("eval",
         help="Full analysis on train + val splits for a fold")
     ep.add_argument("--checkpoint", required=True)
-    ep.add_argument("--data_root",  default=config.DATA_ROOT)
+    ep.add_argument("--data_root",  default=config.DATA_TRAIN)
     ep.add_argument("--fold",       type=int, default=0)
     ep.add_argument("--output_dir", default="./analysis")
 

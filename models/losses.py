@@ -141,12 +141,12 @@ class CosineDistanceLoss(nn.Module):
         dotproduct = torch.Tensor.sum(anchor_embedding * pair_embedding, dim=1)
 
         cosine_similarity =  dotproduct/anchor_norm/pair_norm
-        cosine_distance = torch.Tensor([1]) - cosine_similarity
+        cosine_distance = 1 - cosine_similarity
 
         pos_loss = label * cosine_distance
         neg_loss = (1 - label) * (F.relu(self.margin - cosine_distance))
 
-        loss = pos_loss + neg_loss
+        loss = torch.Tensor.sum(pos_loss + neg_loss)
 
         return loss
 
@@ -190,5 +190,5 @@ class TotalLoss(nn.Module):
         l_cosine = self.cosine(anchor_emb, pair_emb, pair_labels)
         l_arc_anchor = self.arcface(anchor_logits, anchor_class)
         l_arc_pair   = self.arcface(pair_logits,   pair_class)
-        l_total      = self.use_con*l_con + self.use_cosine*l_cosine + self.use_arcface(l_arc_anchor + l_arc_pair)
+        l_total      = self.use_con*l_con + self.use_cosine*l_cosine + self.use_arcface*(l_arc_anchor + l_arc_pair)
         return l_total, l_con, l_cosine, l_arc_anchor, l_arc_pair

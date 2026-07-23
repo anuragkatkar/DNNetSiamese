@@ -73,7 +73,7 @@ def train_one_epoch(
 ) -> dict:
     model.train()
 
-    total_loss = con_loss = arc_a_loss = arc_p_loss = 0.0
+    total_loss = con_loss = arc_a_loss = arc_p_loss = cos_loss = 0.0
     n_batches  = len(loader)
 
     for batch_idx, (anchor_img, pair_img, anchor_cls, pair_cls, pair_bin) in enumerate(loader):
