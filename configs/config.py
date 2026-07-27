@@ -15,6 +15,7 @@ LOG_DIR          = "./logs"
 
 # ── Dataset ───────────────────────────────────────────────────────────────────
 IMAGE_SIZE      = 256                  # paper: resize to 256×256
+IMAGE_SIZE      = 512                  # paper: resize to 256×256
 MIN_PIXELS      = 640                  # paper: only images with >640px included
 SEED            = 42                   # fixed seed for reproducible splits
 VAL_FOLD        = 0                    # which of the 5 folds to use as val
@@ -22,7 +23,8 @@ NUM_FOLDS       = 5                    # paper: 5-fold cross-validation
 NUM_WORKERS     = 2
 
 # ── Model ─────────────────────────────────────────────────────────────────────
-BACKBONE        = "resnet152"          # paper backbone
+# BACKBONE        = "resnet152"          # paper backbone
+BACKBONE        = "resnet18"          # paper backbone
 EMBEDDING_DIM   = 128                  # paper: 1024-dimensional embedding vector
 EXTRA_CHANNELS  = [512, 256]           # two extra conv blocks after ResNet
 FREEZE_BACKBONE_EPOCHS = 30            # set 0 to disable (paper behaviour)
