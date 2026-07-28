@@ -205,13 +205,11 @@ def save_split_csv(
                 writer.writerow([label_to_name[label], path])
         print(f"  Saved {split_name} split ({len(split_samples)} images) → {csv_path}")
 
-def build_kfold_loaders(
-    root: str        = config.DATA_ROOT,
-    fold: int        = config.VAL_FOLD,
-    num_folds: int   = config.NUM_FOLDS,
-    batch_size: int  = config.BATCH_SIZE,
-    num_workers: int = config.NUM_WORKERS,
-    seed: int        = config.SEED,
+def build_data_loaders(
+    train_data_path: str    = config.DATA_TRAIN,
+    val_data_path: str      = config.DATA_VAL,
+    batch_size: int         = config.BATCH_SIZE,
+    num_workers: int        = config.NUM_WORKERS,
 ) -> Tuple[DataLoader, DataLoader, int]:
     """
     Builds train and validation DataLoaders for a specific fold.
@@ -223,45 +221,45 @@ def build_kfold_loaders(
     Returns:
         train_loader, val_loader, num_classes
     """
-    samples, label_to_name = _scan_dataset(root)
-    num_classes = len(label_to_name)
+    train__samples, train_label_to_name = _scan_dataset(train_data_path)
+    val__samples, val_label_to_name = _scan_dataset(val_data_path)
+    train_num_classes = len(train_label_to_name)
+    val_num_classes = len(val_label_to_name)
 
     # ── Group samples by class ─────────────────────────────────────────────
-    label_to_samples: Dict[int, List[Tuple[str, int]]] = {}
-    for path, label in samples:
-        label_to_samples.setdefault(label, []).append((path, label))
+    train_label_to_samples: Dict[int, List[Tuple[str, int]]] = {}
+    for path, label in train__samples:
+        train_label_to_samples.setdefault(label, []).append((path, label))
+        
+    val_label_to_samples: Dict[int, List[Tuple[str, int]]] = {}
+    for path, label in val__samples:
+        val_label_to_samples.setdefault(label, []).append((path, label))
 
-    classes     = sorted(label_to_samples.keys())
-    class_array = np.array(classes)
 
-    # ── KFold on class IDs (we want equal numbers of dogs in each split) ─
-    # StratifiedKFold needs ≥ n_splits members per class; since each class
-    # is itself a unique entity here, we use plain KFold instead.
-    from sklearn.model_selection import KFold
-    kf = KFold(n_splits=num_folds, shuffle=True, random_state=seed)
-    splits = list(kf.split(class_array))
-    train_class_idx, val_class_idx = splits[fold]
+    train_classes     = sorted(train_label_to_samples.keys())
+    val_classes     = sorted(val_label_to_samples.keys())
+    train_class_array = np.array(train_classes)
+    val_class_array = np.array(val_classes)
 
-    train_classes = set(class_array[train_class_idx].tolist())
-    val_classes   = set(class_array[val_class_idx].tolist())
+    train_class_idx, val_class_idx = train_class_array, val_class_array
 
-    train_samples = [s for s in samples if s[1] in train_classes]
-    val_samples   = [s for s in samples if s[1] in val_classes]
+    train_classes = set(train_class_array[train_class_idx].tolist())
+    val_classes   = set(val_class_array[val_class_idx].tolist())
 
-    save_split_csv(train_samples, val_samples, label_to_name, fold, output_dir=os.path.join("checkpoints", f"fold_{fold}"))
-    
+    train_samples = [s for s in train__samples if s[1] in train_classes]
+    val_samples   = [s for s in val__samples if s[1] in val_classes]
+
     print(
-        f"Fold {fold}/{num_folds-1} | "
         f"Train: {len(train_samples)} imgs / {len(train_classes)} dogs | "
         f"Val:   {len(val_samples)} imgs / {len(val_classes)} dogs"
     )
 
     # ── Build Dataset objects ──────────────────────────────────────────────
     train_base = DogNosePrintDataset(
-        train_samples, label_to_name, transform=get_train_transforms()
+        train_samples, train_label_to_name, transform=get_train_transforms()
     )
     val_base = DogNosePrintDataset(
-        val_samples, label_to_name, transform=get_val_transforms()
+        val_samples, val_label_to_name, transform=get_val_transforms()
     )
 
     train_siamese = SiamesePairDataset(train_base, positive_ratio=0.5)
@@ -286,4 +284,4 @@ def build_kfold_loaders(
         pin_memory=True,
     )
 
-    return train_loader, val_loader, num_classes
+    return train_loader, val_loader, train_num_classes
