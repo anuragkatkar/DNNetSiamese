@@ -165,7 +165,7 @@ def plot_similarity_matrix_all(embeddings, labels, label_to_name, matrix_save_pa
     plt.close()
 
     delim = ','
-    if all_paths:
+    try:
         sorted_data = sorted(same_similarities_data, key=lambda x: x[0])
         with open(same_data_path, 'w') as f:
             f.write(f"Distance{delim}Image_A{delim}Image_B\n")
@@ -175,6 +175,8 @@ def plot_similarity_matrix_all(embeddings, labels, label_to_name, matrix_save_pa
                 os.makedirs(folder_path, exist_ok=True)
                 shutil.copy(i[1].replace("split\\test-burst", "cropped_muzzles"), os.path.join(folder_path, i[1].split('\\')[-1][4:]))
                 shutil.copy(i[2].replace("split\\test-burst", "cropped_muzzles"), os.path.join(folder_path, i[2].split('\\')[-1][4:]))
+    except Exception as e:
+        log.info(f"  Saving Same data failed. Error {e}")
 
     log.info(f"    Highest Distance of two different IDs: {different_distance.max():.2f}")
     log.info(f"    Lowest Distance of two different IDs: {different_distance.min():.2f}")

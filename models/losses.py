@@ -146,7 +146,7 @@ class CosineDistanceLoss(nn.Module):
         pos_loss = label * cosine_distance
         neg_loss = (1 - label) * (F.relu(self.margin - cosine_distance))
 
-        loss = torch.Tensor.sum(pos_loss + neg_loss)
+        loss = torch.Tensor.mean(pos_loss + neg_loss)
 
         return loss
 
