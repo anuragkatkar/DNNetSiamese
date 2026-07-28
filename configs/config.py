@@ -14,7 +14,7 @@ CHECKPOINT_DIR   = "./checkpoints"
 LOG_DIR          = "./logs"
 
 # ── Dataset ───────────────────────────────────────────────────────────────────
-IMAGE_SIZE      = 256                  # paper: resize to 256×256
+# IMAGE_SIZE      = 256                  # paper: resize to 256×256
 IMAGE_SIZE      = 512                  # paper: resize to 256×256
 MIN_PIXELS      = 640                  # paper: only images with >640px included
 SEED            = 42                   # fixed seed for reproducible splits
