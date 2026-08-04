@@ -99,7 +99,7 @@ def plot_similarity_matrix(embeddings, labels, label_to_name, save_path, title):
     log.info(f"  Saved similarity matrix → {save_path}")
 
 
-def plot_similarity_matrix_all(embeddings, labels, label_to_name, matrix_save_path, distribution_save_path, same_data_path, same_data_folder, title, all_paths):
+def plot_similarity_matrix_all(embeddings, labels, label_to_name, matrix_save_path, distribution_save_path, same_data_path, same_data_folder, diff_data_path, diff_data_folder, title, all_paths):
     """
     Cosine similarity matrix using all embeddings per identity
     """
@@ -132,10 +132,12 @@ def plot_similarity_matrix_all(embeddings, labels, label_to_name, matrix_save_pa
     same_distance = np.array([1]) - np.array(same_similarities)
 
     different_similarities = []
+    different_similarities_data = []
     for i in range(len(labels)):
         for j in range(i):
             if labels[j] != labels[i]:
                 different_similarities.append(float(sim_matrix[j][i]))
+                different_similarities_data.append((float(sim_matrix[j][i]), all_paths[i], all_paths[j])) if all_paths else None
     different_distance = np.array([1]) - np.array(different_similarities)
 
     fig, ax = plt.subplots(figsize=(10, 6))
@@ -165,16 +167,27 @@ def plot_similarity_matrix_all(embeddings, labels, label_to_name, matrix_save_pa
     plt.close()
 
     delim = ','
+    trim = 0
     try:
         sorted_data = sorted(same_similarities_data, key=lambda x: x[0])
         with open(same_data_path, 'w') as f:
             f.write(f"Distance{delim}Image_A{delim}Image_B\n")
             for i in sorted_data:
-                f.write(f"{1 - i[0]:.3f}{delim}{i[1].split('\\')[-1][4:]}{delim}{i[2].split('\\')[-1][4:]}\n")
+                f.write(f"{1 - i[0]:.3f}{delim}{i[1].split('\\')[-1][trim:]}{delim}{i[2].split('\\')[-1][trim:]}\n")
                 folder_path = os.path.join(same_data_folder, f"{1 - i[0]:.3f}".replace('.','_'))
                 os.makedirs(folder_path, exist_ok=True)
-                shutil.copy(i[1].replace("split\\test-burst", "cropped_muzzles"), os.path.join(folder_path, i[1].split('\\')[-1][4:]))
-                shutil.copy(i[2].replace("split\\test-burst", "cropped_muzzles"), os.path.join(folder_path, i[2].split('\\')[-1][4:]))
+                shutil.copy(i[1].replace("split\\test-burst", "cropped_muzzles"), os.path.join(folder_path, i[1].split('\\')[-1][trim:]))
+                shutil.copy(i[2].replace("split\\test-burst", "cropped_muzzles"), os.path.join(folder_path, i[2].split('\\')[-1][trim:]))
+
+        sorted_data = sorted(different_similarities_data, key=lambda x: x[0], reverse=True)
+        with open(diff_data_path, 'w') as f:
+            f.write(f"Distance{delim}Image_A{delim}Image_B\n")
+            for i in sorted_data:
+                f.write(f"{1 - i[0]:.3f}{delim}{i[1].split('\\')[-1][trim:]}{delim}{i[2].split('\\')[-1][trim:]}\n")
+                folder_path = os.path.join(diff_data_folder, f"{1 - i[0]:.3f}".replace('.','_'))
+                os.makedirs(folder_path, exist_ok=True)
+                shutil.copy(i[1].replace("split\\test-burst", "cropped_muzzles"), os.path.join(folder_path, i[1].split('\\')[-1][trim:]))
+                shutil.copy(i[2].replace("split\\test-burst", "cropped_muzzles"), os.path.join(folder_path, i[2].split('\\')[-1][trim:]))
     except Exception as e:
         log.info(f"  Saving Same data failed. Error {e}")
 
@@ -428,6 +441,8 @@ def analyse_split(
         distribution_save_path = os.path.join(out, "similarity_distribution.png"),
         same_data_path = os.path.join(out, "same_similarity_data.txt"),
         same_data_folder = os.path.join(out, "same_data"),
+        diff_data_path = os.path.join(out, "diff_similarity_data.txt"),
+        diff_data_folder = os.path.join(out, "diff_data"),
         title     = f"Embedding Similarity Matrix — Fold {fold} [{split_name}]",
     )
 
@@ -606,6 +621,8 @@ def cmd_embed(args):
             distribution_save_path = os.path.join(args.output_dir, "similarity_distribution.png"),
             same_data_path = os.path.join(args.output_dir, "same_similarity_data.txt"),
             same_data_folder = os.path.join(args.output_dir, "same_data"),
+            diff_data_path = os.path.join(args.output_dir, "diff_similarity_data.txt"),
+            diff_data_folder = os.path.join(args.output_dir, "diff_data"),
             title     = f"Embedding Similarity Matrix",
             all_paths = all_paths
         )

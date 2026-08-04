@@ -27,7 +27,7 @@ NUM_WORKERS     = 2
 BACKBONE        = "resnet18"          # paper backbone
 EMBEDDING_DIM   = 128                  # paper: 1024-dimensional embedding vector
 EXTRA_CHANNELS  = [512, 256]           # two extra conv blocks after ResNet
-FREEZE_BACKBONE_EPOCHS = 30            # set 0 to disable (paper behaviour)
+FREEZE_BACKBONE_EPOCHS = 0            # set 0 to disable (paper behaviour)
 
 # ── Training ──────────────────────────────────────────────────────────────────
 BATCH_SIZE      = 16                   # paper
@@ -49,7 +49,7 @@ LR_ARCFACE      = 1e-4
 LR_WARMUP_EPOCHS = 5
 
 # ── Loss Functions ────────────────────────────────────────────────────────────
-USE_CONTRASTIVE = True
+USE_CONTRASTIVE = False
 USE_COSINE      = True
 USE_ARCFACE     = True
 
