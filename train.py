@@ -180,9 +180,9 @@ def train(
     
     scaler = GradScaler("cuda", init_scale=1024.0) if config.USE_AMP else None
 
-    if config.FREEZE_BACKBONE_EPOCHS > 0:
-        model.dnnet.feature_extractor.freeze_backbone()
-        log.info(f"Backbone frozen for first {config.FREEZE_BACKBONE_EPOCHS} epochs.")
+    # if config.FREEZE_BACKBONE_EPOCHS > 0:
+    #     model.dnnet.feature_extractor.freeze_backbone()
+    #     log.info(f"Backbone frozen for first {config.FREEZE_BACKBONE_EPOCHS} epochs.")
 
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     log.info(f"Trainable parameters: {total_params:,}")
