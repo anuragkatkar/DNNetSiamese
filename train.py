@@ -30,7 +30,7 @@ sys.path.append(str(ROOT))
 
 from configs import config
 from data.dataset import build_data_loaders
-from models.dnnet import build_model
+from models.custom import build_model
 from models.losses import TotalLoss
 from utils.schedulers import get_dnnet_scheduler, sync_lambda_scheduler_param_groups
 from utils.evaluation import evaluate
