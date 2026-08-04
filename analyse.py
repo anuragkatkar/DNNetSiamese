@@ -22,6 +22,7 @@ import os
 import argparse
 import logging
 from pathlib import Path
+import shutil
 
 import numpy as np
 import torch
@@ -33,7 +34,7 @@ sys.path.append(str(ROOT))
 
 from configs import config
 from data.dataset import (
-    build_kfold_loaders,
+    build_data_loaders,
     DogNosePrintDataset,
     get_val_transforms,
     _scan_dataset,
@@ -98,19 +99,23 @@ def plot_similarity_matrix(embeddings, labels, label_to_name, save_path, title):
     log.info(f"  Saved similarity matrix → {save_path}")
 
 
-def plot_similarity_matrix_all(embeddings, labels, matrix_save_path, distribution_save_path, title):
+def plot_similarity_matrix_all(embeddings, labels, label_to_name, matrix_save_path, distribution_save_path, same_data_path, same_data_folder, diff_data_path, diff_data_folder, title, all_paths):
     """
     Cosine similarity matrix using all embeddings per identity
     """
 
+    names = []
+    for lbl in labels:
+        names.append(label_to_name.get(int(lbl), str(lbl)))
+    
     sim_matrix = cosine_similarity(np.array(embeddings))
 
     plt.figure(figsize=(12, 10))
     plt.imshow(sim_matrix, cmap='coolwarm', aspect='auto')
     plt.colorbar(label='Cosine Similarity')
     plt.title(title, fontsize=14, fontweight='bold')
-    plt.xticks(range(len(labels)), labels, rotation=90, fontsize=8)
-    plt.yticks(range(len(labels)), labels, fontsize=8)
+    plt.xticks(range(len(names)), names, rotation=90, fontsize=8)
+    plt.yticks(range(len(names)), names, fontsize=8)
     plt.tight_layout()
     plt.savefig(matrix_save_path, dpi=150, bbox_inches="tight")
     plt.close()
@@ -118,23 +123,27 @@ def plot_similarity_matrix_all(embeddings, labels, matrix_save_path, distributio
 
     bins = np.linspace(0, 1.5, 100)
     same_similarities = []
+    same_similarities_data = []
     for i in range(len(labels)):
         for j in range(i):
             if labels[j] == labels[i]:
                 same_similarities.append(float(sim_matrix[j][i]))
+                same_similarities_data.append((float(sim_matrix[j][i]), all_paths[i], all_paths[j])) if all_paths else None
     same_distance = np.array([1]) - np.array(same_similarities)
 
     different_similarities = []
+    different_similarities_data = []
     for i in range(len(labels)):
         for j in range(i):
             if labels[j] != labels[i]:
                 different_similarities.append(float(sim_matrix[j][i]))
+                different_similarities_data.append((float(sim_matrix[j][i]), all_paths[i], all_paths[j])) if all_paths else None
     different_distance = np.array([1]) - np.array(different_similarities)
 
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    ax.hist(same_distance, bins=bins, alpha=0.5, label='Same')
-    ax.hist(different_distance, bins=bins, alpha=0.5, label='Different')
+    counts_s, bins_s, patches_s = ax.hist(same_distance, bins=bins, alpha=0.5, label='Same')
+    counts_d, bins_d, patches_d = ax.hist(different_distance, bins=bins, alpha=0.5, label='Different')
 
     major_positions = np.linspace(0, 1.5, 16)
     minor_positions = np.linspace(0, 1.5, 151)  # Skip major spots to keep it clean
@@ -148,14 +157,39 @@ def plot_similarity_matrix_all(embeddings, labels, matrix_save_path, distributio
     ax.tick_params(axis='x', which='minor', length=5, width=1, labelrotation=90)
 
     ax.axvline(x=0.15, color='red', linestyle=':', linewidth=1.5, label='Threshold')
-    ax.text(x=0.16, y=270, s='Threshold', color='red', rotation=90, va='center')
-    ax.text(x=0.15, y=-20, s='0.15', color='red', rotation=90, va='center', ha='center')
+    ax.text(x=0.16, y=max(counts_d.max(), counts_s.max())/2, s='Threshold', color='red', rotation=90, va='center')
+    ax.text(x=0.14, y=max(counts_d.max(), counts_s.max())/2, s='0.15', color='red', rotation=90, va='center', ha='center')
 
     ax.legend()
     plt.title("Similarity Distance Distribution\nSiamese Model")
     plt.tight_layout()
     plt.savefig(distribution_save_path, dpi=150, bbox_inches="tight")
     plt.close()
+
+    delim = ','
+    trim = 0
+    try:
+        sorted_data = sorted(same_similarities_data, key=lambda x: x[0])
+        with open(same_data_path, 'w') as f:
+            f.write(f"Distance{delim}Image_A{delim}Image_B\n")
+            for i in sorted_data:
+                f.write(f"{1 - i[0]:.3f}{delim}{i[1].split('\\')[-1][trim:]}{delim}{i[2].split('\\')[-1][trim:]}\n")
+                folder_path = os.path.join(same_data_folder, f"{1 - i[0]:.3f}".replace('.','_'))
+                os.makedirs(folder_path, exist_ok=True)
+                shutil.copy(i[1].replace("split\\test-burst", "cropped_muzzles"), os.path.join(folder_path, i[1].split('\\')[-1][trim:]))
+                shutil.copy(i[2].replace("split\\test-burst", "cropped_muzzles"), os.path.join(folder_path, i[2].split('\\')[-1][trim:]))
+
+        sorted_data = sorted(different_similarities_data, key=lambda x: x[0], reverse=True)
+        with open(diff_data_path, 'w') as f:
+            f.write(f"Distance{delim}Image_A{delim}Image_B\n")
+            for i in sorted_data:
+                f.write(f"{1 - i[0]:.3f}{delim}{i[1].split('\\')[-1][trim:]}{delim}{i[2].split('\\')[-1][trim:]}\n")
+                folder_path = os.path.join(diff_data_folder, f"{1 - i[0]:.3f}".replace('.','_'))
+                os.makedirs(folder_path, exist_ok=True)
+                shutil.copy(i[1].replace("split\\test-burst", "cropped_muzzles"), os.path.join(folder_path, i[1].split('\\')[-1][trim:]))
+                shutil.copy(i[2].replace("split\\test-burst", "cropped_muzzles"), os.path.join(folder_path, i[2].split('\\')[-1][trim:]))
+    except Exception as e:
+        log.info(f"  Saving Same data failed. Error {e}")
 
     log.info(f"    Highest Distance of two different IDs: {different_distance.max():.2f}")
     log.info(f"    Lowest Distance of two different IDs: {different_distance.min():.2f}")
@@ -402,9 +436,13 @@ def analyse_split(
     )
 
     plot_similarity_matrix_all(
-        embeddings, labels,
+        embeddings, labels, label_to_name,
         matrix_save_path = os.path.join(out, "similarity_matrix_all.png"),
         distribution_save_path = os.path.join(out, "similarity_distribution.png"),
+        same_data_path = os.path.join(out, "same_similarity_data.txt"),
+        same_data_folder = os.path.join(out, "same_data"),
+        diff_data_path = os.path.join(out, "diff_similarity_data.txt"),
+        diff_data_folder = os.path.join(out, "diff_data"),
         title     = f"Embedding Similarity Matrix — Fold {fold} [{split_name}]",
     )
 
@@ -578,10 +616,15 @@ def cmd_embed(args):
         )
 
         plot_similarity_matrix_all(
-            embeddings, labels,
+            embeddings, labels, label_to_name,
             matrix_save_path = os.path.join(args.output_dir, "similarity_matrix_all.png"),
             distribution_save_path = os.path.join(args.output_dir, "similarity_distribution.png"),
+            same_data_path = os.path.join(args.output_dir, "same_similarity_data.txt"),
+            same_data_folder = os.path.join(args.output_dir, "same_data"),
+            diff_data_path = os.path.join(args.output_dir, "diff_similarity_data.txt"),
+            diff_data_folder = os.path.join(args.output_dir, "diff_data"),
             title     = f"Embedding Similarity Matrix",
+            all_paths = all_paths
         )
 
         plot_tsne_pca(
@@ -612,7 +655,7 @@ if __name__ == "__main__":
     ep = sub.add_parser("eval",
         help="Full analysis on train + val splits for a fold")
     ep.add_argument("--checkpoint", required=True)
-    ep.add_argument("--data_root",  default=config.DATA_ROOT)
+    ep.add_argument("--data_root",  default=config.DATA_TRAIN)
     ep.add_argument("--fold",       type=int, default=0)
     ep.add_argument("--output_dir", default="./analysis")
 

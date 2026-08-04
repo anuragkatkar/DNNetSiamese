@@ -11,7 +11,7 @@ Architecture (Figure 5 of the paper):
 import torch
 import torch.nn as nn
 import torchvision.models as tvm
-from torchvision.models import ResNet152_Weights
+from torchvision.models import ResNet152_Weights, ResNet18_Weights
 
 
 class ExtraConvBlock(nn.Module):
@@ -43,7 +43,8 @@ class FeatureExtractionModule(nn.Module):
     """
 
     # ResNet-152 outputs 2048 channels before its GAP layer.
-    RESNET_OUT_CHANNELS = 2048
+    # RESNET_OUT_CHANNELS = 2048
+    RESNET_OUT_CHANNELS = 512
 
     def __init__(self, extra_channels: list = None):
         super().__init__()
@@ -52,7 +53,8 @@ class FeatureExtractionModule(nn.Module):
             extra_channels = [512, 256]   # paper default (Fig. 5b)
 
         # ── Backbone: ResNet-152 minus the last GAP + FC ───────────────────
-        resnet = tvm.resnet152(weights=ResNet152_Weights.IMAGENET1K_V2)
+        # resnet = tvm.resnet152(weights=ResNet152_Weights.IMAGENET1K_V2)
+        resnet = tvm.resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
 
         # Keep everything up to (and including) layer4; drop avgpool and fc
         self.backbone = nn.Sequential(

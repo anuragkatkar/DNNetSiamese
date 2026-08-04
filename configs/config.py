@@ -8,12 +8,14 @@ All hyperparameters are taken directly from the paper:
 import os
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
-DATA_ROOT       = "./split/train"          # root dir: each subdir = one dog ID
-CHECKPOINT_DIR  = "./checkpoints"
-LOG_DIR         = "./logs"
+DATA_TRAIN       = "./split/train"          # root dir: each subdir = one dog ID
+DATA_VAL         = "./split/val"          # root dir: each subdir = one dog ID
+CHECKPOINT_DIR   = "./checkpoints"
+LOG_DIR          = "./logs"
 
 # ── Dataset ───────────────────────────────────────────────────────────────────
-IMAGE_SIZE      = 256                  # paper: resize to 256×256
+# IMAGE_SIZE      = 256                  # paper: resize to 256×256
+IMAGE_SIZE      = 512                  # paper: resize to 256×256
 MIN_PIXELS      = 640                  # paper: only images with >640px included
 SEED            = 42                   # fixed seed for reproducible splits
 VAL_FOLD        = 0                    # which of the 5 folds to use as val
@@ -21,10 +23,11 @@ NUM_FOLDS       = 5                    # paper: 5-fold cross-validation
 NUM_WORKERS     = 2
 
 # ── Model ─────────────────────────────────────────────────────────────────────
-BACKBONE        = "resnet152"          # paper backbone
+# BACKBONE        = "resnet152"          # paper backbone
+BACKBONE        = "resnet18"          # paper backbone
 EMBEDDING_DIM   = 128                  # paper: 1024-dimensional embedding vector
 EXTRA_CHANNELS  = [512, 256]           # two extra conv blocks after ResNet
-FREEZE_BACKBONE_EPOCHS = 30            # set 0 to disable (paper behaviour)
+FREEZE_BACKBONE_EPOCHS = 0            # set 0 to disable (paper behaviour)
 
 # ── Training ──────────────────────────────────────────────────────────────────
 BATCH_SIZE      = 16                   # paper
@@ -45,8 +48,14 @@ LR_ARCFACE      = 1e-4
 # LR schedule: fixed for first 100 epochs, linear decay to 0 for next 100
 LR_WARMUP_EPOCHS = 5
 
+# ── Loss Functions ────────────────────────────────────────────────────────────
+USE_CONTRASTIVE = False
+USE_COSINE      = True
+USE_ARCFACE     = True
+
 # ── Loss hyperparameters ───────────────────────────────────────────────────────
 CONTRASTIVE_MARGIN = 1.0               # paper: m=2 for contrastive loss
+COSINE_MARGIN = 1.5
 ARCFACE_SCALE      = 30.0             # paper: s=30
 ARCFACE_MARGIN     = 0.5              # paper: m=0.5
 
