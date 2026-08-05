@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from .losses import ArcFaceLinear
 
 
-class Custom(nn.Module):
+class Custom_1(nn.Module):
 
     def __init__(self, embedding_dim: int = 128):
         super().__init__()
@@ -49,6 +49,66 @@ class Custom(nn.Module):
 
         return x
     
+class Custom_2(nn.Module):
+
+    def __init__(self, embedding_dim: int = 128):
+        super().__init__()
+
+        self.dim = embedding_dim
+
+        self.conv  = nn.Sequential(
+            nn.Conv2d(3, 8, 3, 1, padding=1),
+            nn.BatchNorm2d(8),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2),
+
+            nn.Conv2d(8, 16, 3, 1, padding=1),
+            nn.BatchNorm2d(16),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2),
+
+            nn.Conv2d(16, 16, 3, 1, padding=1),
+            nn.BatchNorm2d(16),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2),
+
+            
+            nn.Conv2d(16, 16, 3, 1, padding=1),
+            nn.BatchNorm2d(16),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2),
+
+            nn.Conv2d(16, 16, 3, 1, padding=1),
+            nn.BatchNorm2d(16),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2),
+
+            nn.Conv2d(16, 16, 3, 1, padding=1),
+            nn.BatchNorm2d(16),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2),
+        )
+
+        self.flatten = nn.Flatten(start_dim=1, end_dim=-1)
+
+        self.linear = nn.Sequential(
+            nn.Linear(1024, 512),
+            nn.Dropout(0.1),
+            nn.Linear(512, 256),
+            nn.Dropout(0.1),
+            nn.Linear(256, self.dim),
+        )
+
+
+
+
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.conv(x)
+        x = self.flatten(x)
+        x = self.linear(x)
+
+        return x
 
 class Siamese(nn.Module):
 
@@ -58,7 +118,7 @@ class Siamese(nn.Module):
         embedding_dim: int = 128
     ):
         super().__init__()
-        self.custom = Custom(embedding_dim=embedding_dim)
+        self.custom = Custom_1(embedding_dim=embedding_dim)
         self.arcface_head = ArcFaceLinear(embedding_dim, num_classes)
 
     def forward(
