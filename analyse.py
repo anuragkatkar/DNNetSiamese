@@ -311,6 +311,83 @@ def plot_confusion(true_lbl, pred_lbl, label_to_name, save_path,
     plt.close(fig)
     log.info(f"  Saved confusion matrix → {save_path}")
 
+# ── Plot FAR and FRR ───────────────────────────────────────────────────
+
+def plot_far_frr(embeddings, labels, save_path, title="FAR / FRR Curve"):
+    # ── Build all genuine and impostor pair cosine distances ──────────
+    # Embeddings are L2-normalised so cosine_similarity = embeddings @ embeddings.T
+    sim_matrix  = embeddings @ embeddings.T          # (N, N) cosine similarity
+    dist_matrix = 1.0 - sim_matrix                   # cosine distance, range [0, 2]
+    np.fill_diagonal(dist_matrix, np.inf)
+
+    genuine_dists  = []
+    impostor_dists = []
+
+    N = len(labels)
+    for i in range(N):
+        for j in range(i + 1, N):
+            d = dist_matrix[i, j]
+            if labels[i] == labels[j]:
+                genuine_dists.append(d)
+            else:
+                impostor_dists.append(d)
+
+    genuine_dists  = np.array(genuine_dists)
+    impostor_dists = np.array(impostor_dists)
+
+    # ── Sweep thresholds ──────────────────────────────────────────────
+    all_dists  = np.concatenate([genuine_dists, impostor_dists])
+    thresholds = np.linspace(all_dists.min(), all_dists.max(), 500)
+
+    far_values, frr_values = [], []
+    for thresh in thresholds:
+        FA  = np.sum(impostor_dists < thresh)
+        TN  = np.sum(impostor_dists >= thresh)
+        FAR = FA / (FA + TN) if (FA + TN) > 0 else 0.0
+        FN  = np.sum(genuine_dists >= thresh)
+        TP  = np.sum(genuine_dists < thresh)
+        FRR = FN / (FN + TP) if (FN + TP) > 0 else 0.0
+        far_values.append(FAR)
+        frr_values.append(FRR)
+
+    far_values = np.array(far_values)
+    frr_values = np.array(frr_values)
+
+    # ── EER ───────────────────────────────────────────────────────────
+    eer_idx    = np.argmin(np.abs(far_values - frr_values))
+    eer_thresh = thresholds[eer_idx]
+    eer_value  = (far_values[eer_idx] + frr_values[eer_idx]) / 2.0
+
+    # ── Plot ──────────────────────────────────────────────────────────
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.plot(thresholds, far_values * 100, lw=2.5, color="steelblue",  label="FAR")
+    ax.plot(thresholds, frr_values * 100, lw=2.5, color="darkorange", label="FRR")
+    ax.scatter([eer_thresh], [eer_value * 100],
+               color="red", s=120, zorder=5,
+               label=f"EER = {eer_value*100:.2f}%")
+    ax.axvline(eer_thresh, color="red", linestyle=":", lw=1.2)
+    ax.axhline(eer_value * 100, color="red", linestyle=":", lw=1.2)
+    ax.annotate(
+        f"EER = {eer_value*100:.2f}%\n@ threshold = {eer_thresh:.3f}",
+        xy=(eer_thresh, eer_value * 100),
+        xytext=(eer_thresh + (thresholds.max() - thresholds.min()) * 0.05,
+                eer_value * 100 + 5),
+        fontsize=10, color="red",
+        arrowprops=dict(arrowstyle="->", color="red"),
+    )
+    ax.set_xlabel("Cosine Distance Threshold", fontsize=12)
+    ax.set_ylabel("Rate (%)",                  fontsize=12)
+    ax.set_title(title, fontsize=14, fontweight="bold")
+    ax.set_ylim(0, 105)
+    ax.legend(fontsize=12)
+    ax.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+    log.info(f"  Saved FAR/FRR curve → {save_path}")
+    log.info(f"  EER = {eer_value*100:.4f}%  @ cosine threshold = {eer_thresh:.4f}")
+    return eer_value, eer_thresh
 
 # ── TensorBoard Embedding Projector export ───────────────────────────────────
 
@@ -469,9 +546,18 @@ def analyse_split(
         title     = f"Confusion Matrix — Fold {fold} [{split_name}]",
     )
 
+    # ── FAR / FRR curve ───────────────────────────────────────────────
+    eer_value, eer_thresh = plot_far_frr(
+        embeddings, labels,
+        save_path = os.path.join(out, "far_frr.png"),
+        title     = f"FAR / FRR Curve — Fold {fold} [{split_name}]",
+    )
+
     log.info(f"  [{split_name}] All plots saved to {out}/")
     return {
         "silhouette":  sil,
+        "eer":         eer_value * 100,
+        "eer_thresh":  eer_thresh,
         **rank_metrics,
         **far_metrics,
     }
@@ -638,6 +724,11 @@ def cmd_embed(args):
         true_lbl, pred_lbl = compute_confusion(embeddings, labels_arr)
         plot_confusion(true_lbl, pred_lbl, label_to_name,
                        save_path=os.path.join(args.output_dir, "confusion_matrix.png"))
+
+        eer_value, eer_thresh = plot_far_frr(
+            embeddings, labels_arr,
+            save_path = os.path.join(args.output_dir, "far_frr.png"),
+        )
 
     log.info(f"All outputs saved to: {args.output_dir}/")
     return embeddings, labels_arr, all_paths
