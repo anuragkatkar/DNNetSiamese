@@ -30,12 +30,17 @@ sys.path.append(str(ROOT))
 
 from configs import config
 from data.dataset import build_data_loaders
-from models.custom import build_model
 from models.losses import TotalLoss
 from utils.schedulers import get_dnnet_scheduler, sync_lambda_scheduler_param_groups
 from utils.evaluation import evaluate
 from utils.checkpoint import save_checkpoint, load_checkpoint
 
+if config.MODEL == 'alpha':
+    from models.alpha import build_model
+elif config.MODEL == 'beta':
+    from models.beta import build_model
+else:
+    raise ImportError
 
 # ── Reproducibility ───────────────────────────────────────────────────────────
 

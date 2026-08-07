@@ -23,6 +23,7 @@ NUM_FOLDS       = 5                    # paper: 5-fold cross-validation
 NUM_WORKERS     = 2
 
 # ── Model ─────────────────────────────────────────────────────────────────────
+MODEL = "alpha"                        # aplha, beta, res18, res152
 # BACKBONE        = "resnet152"          # paper backbone
 BACKBONE        = "resnet18"          # paper backbone
 EMBEDDING_DIM   = 128                  # paper: 1024-dimensional embedding vector

@@ -39,7 +39,7 @@ from data.dataset import (
     get_val_transforms,
     _scan_dataset,
 )
-from models.custom import build_model
+from models.alpha import build_model
 from utils.checkpoint import load_checkpoint
 from utils.evaluation import (
     extract_embeddings,
