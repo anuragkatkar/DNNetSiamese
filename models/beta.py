@@ -90,8 +90,9 @@ class Siamese(nn.Module):
         return anchor_emb, pair_emb, anchor_logits, pair_logits
 
     def get_embedding(self, x: torch.Tensor) -> torch.Tensor:
-        return self.custom(x)
-
+        x = self.custom(x)
+        embedding = F.normalize(x, p=2, dim=1)
+        return embedding
 
 
 

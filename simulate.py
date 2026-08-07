@@ -6,6 +6,7 @@ import torch
 from configs import config
 from data.dataset import get_val_transforms
 from PIL import Image
+from pathlib import Path
 
 if config.MODEL == 'alpha':
     from models.alpha import build_model
@@ -33,10 +34,45 @@ def load_model(checkpoint_path: str, device: torch.device):
     
     return model
 
+# ── Save Embedding Projector TSV ──────────────────────────────────────────────────
 
-# Simulation
+def save_tsv_projector(
+    embeddings:   np.ndarray,
+    labels:       np.ndarray,
+    paths:        list,
+    out_dir:      str,
+):
+    """
+    Save embeddings and metadata in the two-file TSV format expected by
+    TensorBoard Embedding Projector (https://projector.tensorflow.org):
+
+      embeddings_projector.tsv  – (N × D) values, tab-separated, no header
+      metadata_projector.tsv   – header row + one row per point
+
+    Load in TensorBoard:
+      tensorboard --logdir <out_dir>
+    Or upload both files at https://projector.tensorflow.org.
+    """
+    os.makedirs(out_dir, exist_ok=True)
+    emb_path  = os.path.join(out_dir, "embeddings_projector.tsv")
+    meta_path = os.path.join(out_dir, "metadata_projector.tsv")
+
+    # Embedding vectors — no header, values tab-separated, no quoting
+    np.savetxt(emb_path, embeddings, delimiter="\t", fmt="%.6f")
+
+    # Metadata — first row is column headers (triggers multi-column mode in
+    # TensorBoard Projector), then one data row per embedding.
+    # Written directly (no csv.writer) to guarantee no quoting is added.
+    lines = ["label\tfilename"]
+    for lbl, path in zip(labels, paths):
+        lines.append(f"{lbl}\t{path}")
+    with open(meta_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+
+# ── Simulation ───────────────────────────────────────────────────────────
+
 @torch.no_grad()
-def simulate(threshold, source_dir, save_dir):
+def _simulate(threshold, source_dir, save_dir):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     threshold = 1 - threshold
@@ -102,8 +138,84 @@ def simulate(threshold, source_dir, save_dir):
             shutil.copy(os.path.join(source_dir, image_names[i]), os.path.join(folder_path, folder_name + '__' + image_names[i]))
         
 
+@torch.no_grad()
+def simulate(threshold, source_dir, save_dir):
+    
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    os.makedirs(save_dir, exist_ok=True)
+    model = load_model(args.checkpoint, device)
+    tfm   = get_val_transforms()
+    image_names = os.listdir(source_dir)
 
+    id_ = 10000
+    folder_name = f"DOG_{id_}"
+    folder_names = []
 
+    embeddings = []
+    all_embedding = []
+    all_labels = []
+    paths = []
+    for i, img_ in enumerate(image_names):
+        path = os.path.join(source_dir, img_)
+        try:
+            img    = Image.open(path).convert("RGB")
+            tensor = tfm(img).unsqueeze(0).to(device)
+            emb    = model.get_embedding(tensor)
+            emb    = emb.squeeze(0).cpu().numpy()
+
+            if len(embeddings) == 0:
+                embeddings = list(embeddings)
+                embeddings.append(emb)
+                all_embedding.append(emb)
+                all_labels.append(folder_name)
+
+                print('First Image')
+                folder_names.append(folder_name)
+                folder_path = os.path.join(save_dir, folder_name)
+                
+                os.makedirs(folder_path, exist_ok=True)
+                shutil.copy(path, os.path.join(folder_path, folder_name + 'A' + '__' + img_))
+                continue
+
+            embeddings = np.array(embeddings)
+            similarity = embeddings @ emb.T
+            distance = 1 - similarity
+            min_ = distance.min()
+            argmin_ = distance.argmin()
+
+            if min_ > threshold:
+                embeddings = list(embeddings)
+                embeddings.append(emb)
+                all_embedding.append(emb)
+
+                id_ = 10000
+                id_ = id_ + i
+                folder_name = f"DOG_{id_}"
+                folder_names.append(folder_name)
+                all_labels.append(folder_name)
+
+                folder_path = os.path.join(save_dir, folder_name)
+
+                os.makedirs(folder_path, exist_ok=True)
+                shutil.copy(path, os.path.join(folder_path, folder_name + 'A' + '__' + img_))
+            else:
+                print('Match')
+                folder_name = folder_names[argmin_]
+                folder_path = os.path.join(save_dir, folder_name)
+
+                all_embedding.append(emb)
+                all_labels.append(folder_name)
+
+                os.makedirs(folder_path, exist_ok=True)
+                shutil.copy(path, os.path.join(folder_path, folder_name + '__' + img_))
+
+            embeddings = np.array(embeddings)
+            print(similarity, embeddings.shape, emb.shape)
+
+            paths.append(path)
+        except Exception as e:
+                print(f"  Skipping {path}: {e}")    
+    save_tsv_projector(np.array(all_embedding), np.array(all_labels), image_names, save_dir)
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
