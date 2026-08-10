@@ -23,6 +23,7 @@ NUM_FOLDS       = 5                    # paper: 5-fold cross-validation
 NUM_WORKERS     = 2
 
 # ── Model ─────────────────────────────────────────────────────────────────────
+MODEL = "alpha"                        # alpha, beta, res18, res152
 # BACKBONE        = "resnet152"          # paper backbone
 BACKBONE        = "resnet18"          # paper backbone
 EMBEDDING_DIM   = 128                  # paper: 1024-dimensional embedding vector
@@ -30,9 +31,9 @@ EXTRA_CHANNELS  = [512, 256]           # two extra conv blocks after ResNet
 FREEZE_BACKBONE_EPOCHS = 0            # set 0 to disable (paper behaviour)
 
 # ── Training ──────────────────────────────────────────────────────────────────
-BATCH_SIZE      = 16                   # paper
-NUM_EPOCHS      = 100                  # paper
-PATIENCE        = 10                   # early stop after N non-improving validations (0 disables)
+BATCH_SIZE      = 64                   # paper
+NUM_EPOCHS      = 150                  # paper
+PATIENCE        = 50                   # early stop after N non-improving validations (0 disables)
 LR_CONTRASTIVE  = 5e-5                 # paper: initial LR 0.0001
 USE_AMP = False
 

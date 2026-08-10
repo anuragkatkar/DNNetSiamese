@@ -6,3 +6,4 @@ wandb
 *.csv
 *split*
 dog-verify-*
+simulation*

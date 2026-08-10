@@ -30,12 +30,20 @@ sys.path.append(str(ROOT))
 
 from configs import config
 from data.dataset import build_data_loaders
-from models.dnnet import build_model
 from models.losses import TotalLoss
 from utils.schedulers import get_dnnet_scheduler, sync_lambda_scheduler_param_groups
 from utils.evaluation import evaluate
 from utils.checkpoint import save_checkpoint, load_checkpoint
 
+if config.MODEL == 'alpha':
+    from models.alpha import build_model
+elif config.MODEL == 'beta':
+    from models.beta import build_model
+elif config.MODEL == 'facenet':
+    from models.facenet import build_model
+else:
+    raise ImportError
+print('='*20, f'TRAINING MODEL: {config.MODEL}', '='*20)
 
 # ── Reproducibility ───────────────────────────────────────────────────────────
 
@@ -179,10 +187,6 @@ def train(
     model = build_model(num_classes=num_classes, cfg=config).to(device)
     
     scaler = GradScaler("cuda", init_scale=1024.0) if config.USE_AMP else None
-
-    if config.FREEZE_BACKBONE_EPOCHS > 0:
-        model.dnnet.feature_extractor.freeze_backbone()
-        log.info(f"Backbone frozen for first {config.FREEZE_BACKBONE_EPOCHS} epochs.")
 
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     log.info(f"Trainable parameters: {total_params:,}")

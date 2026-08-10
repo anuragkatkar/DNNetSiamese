@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from .losses import ArcFaceLinear
 
 
-class Custom(nn.Module):
+class Alpha(nn.Module):
 
     def __init__(self, embedding_dim: int = 128):
         super().__init__()
@@ -48,7 +48,7 @@ class Custom(nn.Module):
         x = self.linear(x)
 
         return x
-    
+
 
 class Siamese(nn.Module):
 
@@ -58,7 +58,7 @@ class Siamese(nn.Module):
         embedding_dim: int = 128
     ):
         super().__init__()
-        self.custom = Custom(embedding_dim=embedding_dim)
+        self.custom = Alpha(embedding_dim=embedding_dim)
         self.arcface_head = ArcFaceLinear(embedding_dim, num_classes)
 
     def forward(
@@ -75,7 +75,9 @@ class Siamese(nn.Module):
         return anchor_emb, pair_emb, anchor_logits, pair_logits
 
     def get_embedding(self, x: torch.Tensor) -> torch.Tensor:
-        return self.custom(x)
+        x = self.custom(x)
+        embedding = F.normalize(x, p=2, dim=1)
+        return embedding
 
 
 
