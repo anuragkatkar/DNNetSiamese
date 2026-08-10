@@ -39,7 +39,16 @@ from data.dataset import (
     get_val_transforms,
     _scan_dataset,
 )
-from models.alpha import build_model
+
+if config.MODEL == 'alpha':
+    from models.alpha import build_model
+elif config.MODEL == 'beta':
+    from models.beta import build_model
+elif config.MODEL == 'facenet':
+    from models.facenet import build_model
+else:
+    raise ImportError
+
 from utils.checkpoint import load_checkpoint
 from utils.evaluation import (
     extract_embeddings,

@@ -39,8 +39,11 @@ if config.MODEL == 'alpha':
     from models.alpha import build_model
 elif config.MODEL == 'beta':
     from models.beta import build_model
+elif config.MODEL == 'facenet':
+    from models.facenet import build_model
 else:
     raise ImportError
+print('='*20, f'TRAINING MODEL: {config.MODEL}', '='*20)
 
 # ── Reproducibility ───────────────────────────────────────────────────────────
 
