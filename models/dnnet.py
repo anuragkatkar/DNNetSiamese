@@ -40,7 +40,7 @@ class DNNet(nn.Module):
         super().__init__()
         if extra_channels is None:
             extra_channels = [512, 256]
-        self.mask = CircularMask(IMAGE_SIZE, IMAGE_SIZE - 12)
+        # self.mask = CircularMask(IMAGE_SIZE, IMAGE_SIZE - 12)
         self.feature_extractor = FeatureExtractionModule(extra_channels=extra_channels)
         self.attention          = AttentionModule(
             in_channels   = self.feature_extractor.out_channels,
@@ -49,8 +49,8 @@ class DNNet(nn.Module):
         self.embedding_dim = embedding_dim
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        masked = self.mask(x)
-        features  = self.feature_extractor(masked)     # (B, 256, H', W')
+        # x = self.mask(x)
+        features  = self.feature_extractor(x)     # (B, 256, H', W')
         embedding = self.attention(features)       # (B, 1024)
         # L2-normalise before distance computation (standard practice)
         embedding = F.normalize(embedding, p=2, dim=1)
