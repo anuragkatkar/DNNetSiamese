@@ -2,6 +2,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from configs.config import IMAGE_SIZE
+from .stn import STN
+
+import numpy as np
+import cv2
 
 from .losses import ArcFaceLinear
 
@@ -12,6 +16,8 @@ class Alpha(nn.Module):
         super().__init__()
 
         self.dim = embedding_dim
+
+        self.stn = STN()
 
         self.conv  = nn.Sequential(
             nn.Conv2d(3, 16, 4, 1, padding=1),
@@ -44,6 +50,20 @@ class Alpha(nn.Module):
 
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.stn(x)
+        print('x:', x)
+        y_tensor = x.squeeze(0)
+
+        y_tensor = y_tensor.permute(1, 2, 0)
+
+        y = y_tensor.detach().cpu().numpy().copy()
+
+        y = cv2.cvtColor(y, cv2.COLOR_RGB2BGR)
+
+        print('y:', y)
+        cv2.imwrite("transformed_image.jpg", y)
+        print(y.shape)
+
         x = self.conv(x)
         x = self.flatten(x)
         x = self.linear(x)

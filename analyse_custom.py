@@ -42,6 +42,8 @@ from data.dataset import (
 
 if config.MODEL == 'alpha':
     from models.alpha import build_model
+if config.MODEL == 'alpha-stn':
+    from models.alpha_stn import build_model
 elif config.MODEL == 'beta':
     from models.beta import build_model
 elif config.MODEL == 'facenet':

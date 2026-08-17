@@ -21,6 +21,7 @@ from .feature_extraction import FeatureExtractionModule
 from .attention import AttentionModule
 from .losses import ArcFaceLinear
 
+from configs.config import IMAGE_SIZE
 
 class DNNet(nn.Module):
     """
@@ -38,7 +39,6 @@ class DNNet(nn.Module):
         super().__init__()
         if extra_channels is None:
             extra_channels = [512, 256]
-
         self.feature_extractor = FeatureExtractionModule(extra_channels=extra_channels)
         self.attention          = AttentionModule(
             in_channels   = self.feature_extractor.out_channels,
