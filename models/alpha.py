@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from configs.config import IMAGE_SIZE
-from .mask import CircularMask
 
 from .losses import ArcFaceLinear
 
@@ -13,8 +12,6 @@ class Alpha(nn.Module):
         super().__init__()
 
         self.dim = embedding_dim
-
-        self.mask = CircularMask(IMAGE_SIZE, IMAGE_SIZE - 12)
 
         self.conv  = nn.Sequential(
             nn.Conv2d(3, 16, 4, 1, padding=1),
@@ -47,7 +44,6 @@ class Alpha(nn.Module):
 
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.mask(x)
         x = self.conv(x)
         x = self.flatten(x)
         x = self.linear(x)
