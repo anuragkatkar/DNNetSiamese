@@ -165,7 +165,7 @@ def plot_similarity_matrix_all(embeddings, labels, label_to_name, matrix_save_pa
     text_x_position = 0.40
     ax.axvline(x=text_x_position, color='red', linestyle=':', linewidth=1.5, label='Threshold')
     ax.text(x=text_x_position + 0.01, y=text_y_position, s='Threshold', color='red', rotation=90, va='center')
-    ax.text(x=text_x_position - 0.01, y=text_y_position, s='0.15', color='red', rotation=90, va='center', ha='center')
+    ax.text(x=text_x_position - 0.01, y=text_y_position, s='0.40', color='red', rotation=90, va='center', ha='center')
 
     lines_s, labels_s = ax.get_legend_handles_labels()
     lines_d, labels_d = ax2.get_legend_handles_labels()
@@ -176,7 +176,7 @@ def plot_similarity_matrix_all(embeddings, labels, label_to_name, matrix_save_pa
     plt.savefig(distribution_save_path, dpi=150, bbox_inches="tight")
     plt.close()
 
-
+    SAVE_IMAGES = False
     delim = ','
     trim = 0
     try:
@@ -185,20 +185,22 @@ def plot_similarity_matrix_all(embeddings, labels, label_to_name, matrix_save_pa
             f.write(f"Distance{delim}Image_A{delim}Image_B\n")
             for i in sorted_data:
                 f.write(f"{1 - i[0]:.3f}{delim}{i[1].split('\\')[-1][trim:]}{delim}{i[2].split('\\')[-1][trim:]}\n")
-                folder_path = os.path.join(same_data_folder, f"{1 - i[0]:.3f}".replace('.','_'))
-                os.makedirs(folder_path, exist_ok=True)
-                shutil.copy(i[1].replace("split\\test-burst", "cropped_muzzles"), os.path.join(folder_path, i[1].split('\\')[-1][trim:]))
-                shutil.copy(i[2].replace("split\\test-burst", "cropped_muzzles"), os.path.join(folder_path, i[2].split('\\')[-1][trim:]))
+                if SAVE_IMAGES:
+                    folder_path = os.path.join(same_data_folder, f"{1 - i[0]:.3f}".replace('.','_'))
+                    os.makedirs(folder_path, exist_ok=True)
+                    shutil.copy(i[1].replace("split\\test-burst", "cropped_muzzles"), os.path.join(folder_path, i[1].split('\\')[-1][trim:]))
+                    shutil.copy(i[2].replace("split\\test-burst", "cropped_muzzles"), os.path.join(folder_path, i[2].split('\\')[-1][trim:]))
 
         sorted_data = sorted(different_similarities_data, key=lambda x: x[0], reverse=True)
         with open(diff_data_path, 'w') as f:
             f.write(f"Distance{delim}Image_A{delim}Image_B\n")
             for i in sorted_data:
                 f.write(f"{1 - i[0]:.3f}{delim}{i[1].split('\\')[-1][trim:]}{delim}{i[2].split('\\')[-1][trim:]}\n")
-                folder_path = os.path.join(diff_data_folder, f"{1 - i[0]:.3f}".replace('.','_'))
-                os.makedirs(folder_path, exist_ok=True)
-                shutil.copy(i[1].replace("split\\test-burst", "cropped_muzzles"), os.path.join(folder_path, i[1].split('\\')[-1][trim:]))
-                shutil.copy(i[2].replace("split\\test-burst", "cropped_muzzles"), os.path.join(folder_path, i[2].split('\\')[-1][trim:]))
+                if SAVE_IMAGES:
+                    folder_path = os.path.join(diff_data_folder, f"{1 - i[0]:.3f}".replace('.','_'))
+                    os.makedirs(folder_path, exist_ok=True)
+                    shutil.copy(i[1].replace("split\\test-burst", "cropped_muzzles"), os.path.join(folder_path, i[1].split('\\')[-1][trim:]))
+                    shutil.copy(i[2].replace("split\\test-burst", "cropped_muzzles"), os.path.join(folder_path, i[2].split('\\')[-1][trim:]))
     except Exception as e:
         log.info(f"  Saving Same data failed. Error {e}")
 
