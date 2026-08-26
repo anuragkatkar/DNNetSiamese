@@ -689,13 +689,13 @@ def cmd_embed(args):
     labels_arr = np.array(all_labels, dtype=np.int64)
 
     # Print table
-    print(f"\n{'─'*90}")
-    print(f"{'Index':<6}  {'ID':<20}  {'Image':<45}  {'Norm':>9}")
-    print(f"{'─'*90}")
-    for i, (path, lbl, emb) in enumerate(zip(all_paths, labels_arr, embeddings)):
-        identity = label_to_name.get(int(lbl), str(lbl))
-        print(f"{i:<6}  {identity:<20}  {Path(path).name:<45}  {np.linalg.norm(emb):>9.4f}")
-    print(f"{'─'*90}\n")
+    # print(f"\n{'─'*90}")
+    # print(f"{'Index':<6}  {'ID':<20}  {'Image':<45}  {'Norm':>9}")
+    # print(f"{'─'*90}")
+    # for i, (path, lbl, emb) in enumerate(zip(all_paths, labels_arr, embeddings)):
+    #     identity = label_to_name.get(int(lbl), str(lbl))
+    #     print(f"{i:<6}  {identity:<20}  {Path(path).name:<45}  {np.linalg.norm(emb):>9.4f}")
+    # print(f"{'─'*90}\n")
 
     np.savez(os.path.join(args.output_dir, "embeddings.npz"),
              embeddings=embeddings, labels=labels_arr,
