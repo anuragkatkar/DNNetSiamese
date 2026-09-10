@@ -132,15 +132,29 @@ def train_one_epoch(
             )
 
         # ── Backward ──────────────────────────────────────────────────────
+        if not torch.isfinite(l_total):
+            log.warning(f"  NaN/Inf loss at epoch {epoch} batch {batch_idx} — skipping batch")
+            opt_adam.zero_grad()
+            opt_sgd.zero_grad()
+            continue
+
         opt_adam.zero_grad()
         opt_sgd.zero_grad()
-        scaler.scale(l_total).backward()
-        scaler.unscale_(opt_adam)
-        scaler.unscale_(opt_sgd)
-        nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
-        scaler.step(opt_adam)
-        scaler.step(opt_sgd)
-        scaler.update()
+
+
+        if config.USE_AMP:
+            scaler.scale(l_total).backward()
+            scaler.unscale_(opt_adam)
+            scaler.unscale_(opt_sgd)
+            nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
+            scaler.step(opt_adam)
+            scaler.step(opt_sgd)
+            scaler.update()
+        else:
+            l_total.backward()
+            nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
+            opt_adam.step()
+            opt_sgd.step()
 
         total_loss += l_total.item()
         con_loss   += l_con.item()
@@ -182,7 +196,7 @@ def train(fold: int = 0, resume_ckpt: Optional[str] = None):
     log.info(f"Device: {device}  |  DNNetV2  |  Fold: {fold}")
 
     # ── Data ──────────────────────────────────────────────────────────────
-    log.info(f"Loading dataset from: {config.DATA_ROOT}")
+    log.info(f"Loading dataset from: {config.DATA_TRAIN}")
     train_loader, val_loader, num_classes = build_data_loaders(
         train_data_path     = config.DATA_TRAIN,
         val_data_path       = config.DATA_VAL,
