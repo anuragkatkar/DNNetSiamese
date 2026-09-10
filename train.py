@@ -255,7 +255,7 @@ def train(
         ckpt = load_checkpoint(
             resume_ckpt, model, opt_adam, opt_sgd, sched_adam, sched_sgd, device
         )
-        start_epoch = ckpt["epoch"] + 1
+        start_epoch = ckpt["epoch"]
         best_rank1  = ckpt["metrics"].get("val/rank_1", 0.0)
         log.info(f"Resuming from epoch {start_epoch}  (best rank-1: {best_rank1:.3f}%)")
 

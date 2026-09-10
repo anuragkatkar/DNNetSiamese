@@ -22,6 +22,7 @@ import os
 import argparse
 import logging
 from pathlib import Path
+import shutil
 
 import numpy as np
 import torch
@@ -33,7 +34,7 @@ sys.path.append(str(ROOT))
 
 from configs import config
 from data.dataset import (
-    build_kfold_loaders,
+    build_data_loaders,
     DogNosePrintDataset,
     get_val_transforms,
     _scan_dataset,
@@ -96,10 +97,14 @@ def plot_similarity_matrix(embeddings, labels, label_to_name, save_path, title):
     plt.close()
     log.info(f"  Saved similarity matrix → {save_path}")
 
-def plot_similarity_matrix_all(embeddings, labels, matrix_save_path, distribution_save_path, title):
+def plot_similarity_matrix_all(embeddings, labels, label_to_name, matrix_save_path, distribution_save_path, same_data_path, same_data_folder, diff_data_path, diff_data_folder, title, all_paths):
     """
     Cosine similarity matrix using all embeddings per identity
     """
+
+    names = []
+    for lbl in labels:
+        names.append(label_to_name.get(int(lbl), str(lbl)))
 
     sim_matrix = cosine_similarity(np.array(embeddings))
 
@@ -116,44 +121,86 @@ def plot_similarity_matrix_all(embeddings, labels, matrix_save_path, distributio
 
     bins = np.linspace(0, 1.5, 100)
     same_similarities = []
+    same_similarities_data = []
     for i in range(len(labels)):
         for j in range(i):
             if labels[j] == labels[i]:
                 same_similarities.append(float(sim_matrix[j][i]))
+                same_similarities_data.append((float(sim_matrix[j][i]), all_paths[i], all_paths[j])) if all_paths else None
     same_distance = np.array([1]) - np.array(same_similarities)
 
     different_similarities = []
+    different_similarities_data = []
     for i in range(len(labels)):
         for j in range(i):
             if labels[j] != labels[i]:
                 different_similarities.append(float(sim_matrix[j][i]))
+                different_similarities_data.append((float(sim_matrix[j][i]), all_paths[i], all_paths[j])) if all_paths else None
     different_distance = np.array([1]) - np.array(different_similarities)
 
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    ax.hist(same_distance, bins=bins, alpha=0.5, label='Same')
-    ax.hist(different_distance, bins=bins, alpha=0.5, label='Different')
+    counts_s, bins_s, patches_s = ax.hist(same_distance, bins=bins, alpha=0.5, label='Same', color='tab:blue')
+    ax.set_ylabel('Same Count', color='tab:blue')
+    ax.tick_params(axis='y', labelcolor='tab:blue')
+
+    ax2 = ax.twinx()
+    counts_d, bins_d, patches_d = ax2.hist(different_distance, bins=bins, alpha=0.5, label='Different', color='tab:orange')
+    ax2.set_ylabel('Different Count', color='tab:orange')
+    ax2.tick_params(axis='y', labelcolor='tab:orange')
 
     major_positions = np.linspace(0, 1.5, 16)
-    minor_positions = np.linspace(0, 1.5, 151)  # Skip major spots to keep it clean
+    minor_positions = np.linspace(0, 1.5, 151)
 
-    # 2. Tell the axis exactly where to place them
     ax.set_xticks(major_positions, minor=False)
     ax.set_xticks(minor_positions, minor=True)
 
-    # 3. Apply your custom styling
     ax.tick_params(axis='x', which='major', length=10, width=2, labelsize=12)
     ax.tick_params(axis='x', which='minor', length=5, width=1, labelrotation=90)
 
-    ax.axvline(x=0.15, color='red', linestyle=':', linewidth=1.5, label='Threshold')
-    ax.text(x=0.16, y=270, s='Threshold', color='red', rotation=90, va='center')
-    ax.text(x=0.15, y=-20, s='0.15', color='red', rotation=90, va='center', ha='center')
 
-    ax.legend()
+    text_y_position = counts_s.max() / 2
+    text_x_position = 0.40
+    ax.axvline(x=text_x_position, color='red', linestyle=':', linewidth=1.5, label='Threshold')
+    ax.text(x=text_x_position + 0.01, y=text_y_position, s='Threshold', color='red', rotation=90, va='center')
+    ax.text(x=text_x_position - 0.01, y=text_y_position, s='0.40', color='red', rotation=90, va='center', ha='center')
+
+    lines_s, labels_s = ax.get_legend_handles_labels()
+    lines_d, labels_d = ax2.get_legend_handles_labels()
+    ax.legend(lines_s + lines_d, labels_s + labels_d, loc='upper right')
+
     plt.title("Similarity Distance Distribution\nSiamese Model")
     plt.tight_layout()
     plt.savefig(distribution_save_path, dpi=150, bbox_inches="tight")
     plt.close()
+
+    SAVE_IMAGES = False
+    delim = ','
+    trim = 0
+    try:
+        sorted_data = sorted(same_similarities_data, key=lambda x: x[0])
+        with open(same_data_path, 'w') as f:
+            f.write(f"Distance{delim}Image_A{delim}Image_B\n")
+            for i in sorted_data:
+                f.write(f"{1 - i[0]:.3f}{delim}{i[1].split('\\')[-1][trim:]}{delim}{i[2].split('\\')[-1][trim:]}\n")
+                if SAVE_IMAGES:
+                    folder_path = os.path.join(same_data_folder, f"{1 - i[0]:.3f}".replace('.','_'))
+                    os.makedirs(folder_path, exist_ok=True)
+                    shutil.copy(i[1].replace("split\\test-burst", "cropped_muzzles"), os.path.join(folder_path, i[1].split('\\')[-1][trim:]))
+                    shutil.copy(i[2].replace("split\\test-burst", "cropped_muzzles"), os.path.join(folder_path, i[2].split('\\')[-1][trim:]))
+
+        sorted_data = sorted(different_similarities_data, key=lambda x: x[0], reverse=True)
+        with open(diff_data_path, 'w') as f:
+            f.write(f"Distance{delim}Image_A{delim}Image_B\n")
+            for i in sorted_data:
+                f.write(f"{1 - i[0]:.3f}{delim}{i[1].split('\\')[-1][trim:]}{delim}{i[2].split('\\')[-1][trim:]}\n")
+                if SAVE_IMAGES:
+                    folder_path = os.path.join(diff_data_folder, f"{1 - i[0]:.3f}".replace('.','_'))
+                    os.makedirs(folder_path, exist_ok=True)
+                    shutil.copy(i[1].replace("split\\test-burst", "cropped_muzzles"), os.path.join(folder_path, i[1].split('\\')[-1][trim:]))
+                    shutil.copy(i[2].replace("split\\test-burst", "cropped_muzzles"), os.path.join(folder_path, i[2].split('\\')[-1][trim:]))
+    except Exception as e:
+        log.info(f"  Saving Same data failed. Error {e}")
 
     log.info(f"    Highest Distance of two different IDs: {different_distance.max():.2f}")
     log.info(f"    Lowest Distance of two different IDs: {different_distance.min():.2f}")
@@ -274,6 +321,83 @@ def plot_confusion(true_lbl, pred_lbl, label_to_name, save_path,
     plt.close(fig)
     log.info(f"  Saved confusion matrix → {save_path}")
 
+# ── Plot FAR and FRR ───────────────────────────────────────────────────
+
+def plot_far_frr(embeddings, labels, save_path, title="FAR / FRR Curve"):
+    # ── Build all genuine and impostor pair cosine distances ──────────
+    # Embeddings are L2-normalised so cosine_similarity = embeddings @ embeddings.T
+    sim_matrix  = embeddings @ embeddings.T          # (N, N) cosine similarity
+    dist_matrix = 1.0 - sim_matrix                   # cosine distance, range [0, 2]
+    np.fill_diagonal(dist_matrix, np.inf)
+
+    genuine_dists  = []
+    impostor_dists = []
+
+    N = len(labels)
+    for i in range(N):
+        for j in range(i + 1, N):
+            d = dist_matrix[i, j]
+            if labels[i] == labels[j]:
+                genuine_dists.append(d)
+            else:
+                impostor_dists.append(d)
+
+    genuine_dists  = np.array(genuine_dists)
+    impostor_dists = np.array(impostor_dists)
+
+    # ── Sweep thresholds ──────────────────────────────────────────────
+    all_dists  = np.concatenate([genuine_dists, impostor_dists])
+    thresholds = np.linspace(all_dists.min(), all_dists.max(), 500)
+
+    far_values, frr_values = [], []
+    for thresh in thresholds:
+        FA  = np.sum(impostor_dists < thresh)
+        TN  = np.sum(impostor_dists >= thresh)
+        FAR = FA / (FA + TN) if (FA + TN) > 0 else 0.0
+        FN  = np.sum(genuine_dists >= thresh)
+        TP  = np.sum(genuine_dists < thresh)
+        FRR = FN / (FN + TP) if (FN + TP) > 0 else 0.0
+        far_values.append(FAR)
+        frr_values.append(FRR)
+
+    far_values = np.array(far_values)
+    frr_values = np.array(frr_values)
+
+    # ── EER ───────────────────────────────────────────────────────────
+    eer_idx    = np.argmin(np.abs(far_values - frr_values))
+    eer_thresh = thresholds[eer_idx]
+    eer_value  = (far_values[eer_idx] + frr_values[eer_idx]) / 2.0
+
+    # ── Plot ──────────────────────────────────────────────────────────
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.plot(thresholds, far_values * 100, lw=2.5, color="steelblue",  label="FAR")
+    ax.plot(thresholds, frr_values * 100, lw=2.5, color="darkorange", label="FRR")
+    ax.scatter([eer_thresh], [eer_value * 100],
+               color="red", s=120, zorder=5,
+               label=f"EER = {eer_value*100:.2f}%")
+    ax.axvline(eer_thresh, color="red", linestyle=":", lw=1.2)
+    ax.axhline(eer_value * 100, color="red", linestyle=":", lw=1.2)
+    ax.annotate(
+        f"EER = {eer_value*100:.2f}%\n@ threshold = {eer_thresh:.3f}",
+        xy=(eer_thresh, eer_value * 100),
+        xytext=(eer_thresh + (thresholds.max() - thresholds.min()) * 0.05,
+                eer_value * 100 + 5),
+        fontsize=10, color="red",
+        arrowprops=dict(arrowstyle="->", color="red"),
+    )
+    ax.set_xlabel("Cosine Distance Threshold", fontsize=12)
+    ax.set_ylabel("Rate (%)",                  fontsize=12)
+    ax.set_title(title, fontsize=14, fontweight="bold")
+    ax.set_ylim(0, 105)
+    ax.legend(fontsize=12)
+    ax.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+    log.info(f"  Saved FAR/FRR curve → {save_path}")
+    log.info(f"  EER = {eer_value*100:.4f}%  @ cosine threshold = {eer_thresh:.4f}")
+    return eer_value, eer_thresh
 
 # ── TensorBoard Embedding Projector export ───────────────────────────────────
 
@@ -406,9 +530,13 @@ def analyse_split(
     )
 
     plot_similarity_matrix_all(
-        embeddings, labels,
+        embeddings, labels, label_to_name,
         matrix_save_path = os.path.join(out, "similarity_matrix_all.png"),
         distribution_save_path = os.path.join(out, "similarity_distribution.png"),
+        same_data_path = os.path.join(out, "same_similarity_data.txt"),
+        same_data_folder = os.path.join(out, "same_data"),
+        diff_data_path = os.path.join(out, "diff_similarity_data.txt"),
+        diff_data_folder = os.path.join(out, "diff_data"),
         title     = f"Embedding Similarity Matrix — Fold {fold} [{split_name}]",
     )
 
@@ -435,9 +563,18 @@ def analyse_split(
         title     = f"Confusion Matrix — Fold {fold} [{split_name}]",
     )
 
+    # ── FAR / FRR curve ───────────────────────────────────────────────
+    eer_value, eer_thresh = plot_far_frr(
+        embeddings, labels,
+        save_path = os.path.join(out, "far_frr.png"),
+        title     = f"FAR / FRR Curve — Fold {fold} [{split_name}]",
+    )
+
     log.info(f"  [{split_name}] All plots saved to {out}/")
     return {
         "silhouette":  sil,
+        "eer":         eer_value * 100,
+        "eer_thresh":  eer_thresh,
         **rank_metrics,
         **far_metrics,
     }
@@ -556,13 +693,13 @@ def cmd_embed(args):
     labels_arr = np.array(all_labels, dtype=np.int64)
 
     # Print table
-    print(f"\n{'─'*90}")
-    print(f"{'Index':<6}  {'ID':<20}  {'Image':<45}  {'Norm':>9}")
-    print(f"{'─'*90}")
-    for i, (path, lbl, emb) in enumerate(zip(all_paths, labels_arr, embeddings)):
-        identity = label_to_name.get(int(lbl), str(lbl))
-        print(f"{i:<6}  {identity:<20}  {Path(path).name:<45}  {np.linalg.norm(emb):>9.4f}")
-    print(f"{'─'*90}\n")
+    # print(f"\n{'─'*90}")
+    # print(f"{'Index':<6}  {'ID':<20}  {'Image':<45}  {'Norm':>9}")
+    # print(f"{'─'*90}")
+    # for i, (path, lbl, emb) in enumerate(zip(all_paths, labels_arr, embeddings)):
+    #     identity = label_to_name.get(int(lbl), str(lbl))
+    #     print(f"{i:<6}  {identity:<20}  {Path(path).name:<45}  {np.linalg.norm(emb):>9.4f}")
+    # print(f"{'─'*90}\n")
 
     np.savez(os.path.join(args.output_dir, "embeddings.npz"),
              embeddings=embeddings, labels=labels_arr,
@@ -582,10 +719,15 @@ def cmd_embed(args):
         )
 
         plot_similarity_matrix_all(
-            embeddings, labels,
+            embeddings, labels, label_to_name,
             matrix_save_path = os.path.join(args.output_dir, "similarity_matrix_all.png"),
             distribution_save_path = os.path.join(args.output_dir, "similarity_distribution.png"),
+            same_data_path = os.path.join(args.output_dir, "same_similarity_data.txt"),
+            same_data_folder = os.path.join(args.output_dir, "same_data"),
+            diff_data_path = os.path.join(args.output_dir, "diff_similarity_data.txt"),
+            diff_data_folder = os.path.join(args.output_dir, "diff_data"),
             title     = f"Embedding Similarity Matrix",
+            all_paths = all_paths
         )
 
         plot_tsne_pca(
@@ -593,13 +735,17 @@ def cmd_embed(args):
             save_path    = os.path.join(args.output_dir, "tsne_pca.png"),
             title_prefix = "Embedded Images",
         )
-        
         fpr, tpr, auc_score = compute_roc(embeddings, labels_arr)
         plot_roc(fpr, tpr, auc_score,
                  save_path=os.path.join(args.output_dir, "roc.png"))
         true_lbl, pred_lbl = compute_confusion(embeddings, labels_arr)
         plot_confusion(true_lbl, pred_lbl, label_to_name,
                        save_path=os.path.join(args.output_dir, "confusion_matrix.png"))
+
+        eer_value, eer_thresh = plot_far_frr(
+            embeddings, labels_arr,
+            save_path = os.path.join(args.output_dir, "far_frr.png"),
+        )
 
     log.info(f"All outputs saved to: {args.output_dir}/")
     return embeddings, labels_arr, all_paths
@@ -617,7 +763,7 @@ if __name__ == "__main__":
     ep = sub.add_parser("eval",
         help="Full analysis on train + val splits for a fold")
     ep.add_argument("--checkpoint", required=True)
-    ep.add_argument("--data_root",  default=config.DATA_ROOT)
+    ep.add_argument("--data_root",  default=config.DATA_TRAIN)
     ep.add_argument("--fold",       type=int, default=0)
     ep.add_argument("--output_dir", default="./analysis")
 

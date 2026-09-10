@@ -39,7 +39,7 @@ ROOT = Path(__file__).resolve().parent
 sys.path.append(str(ROOT))
 
 from configs import config
-from data.dataset import build_kfold_loaders, DogNosePrintDataset, get_train_transforms
+from data.dataset import build_data_loaders, DogNosePrintDataset, get_train_transforms
 from data.dataset_v2 import HardNegativePairDataset
 from models.dnnet_v2 import build_model_v2
 from models.losses_v2 import TotalLossV2
@@ -52,7 +52,7 @@ from utils.checkpoint import save_checkpoint, load_checkpoint
 
 V2_CHECKPOINT_DIR    = "./checkpoints_v2"
 V2_PROJECT_NAME      = "DNNetV2-Pet-NosePrint"
-FREEZE_BACKBONE_EPOCHS = getattr(config, "FREEZE_BACKBONE_EPOCHS", 30)
+FREEZE_BACKBONE_EPOCHS = getattr(config, "FREEZE_BACKBONE_EPOCHS", 0)
 TINYVIT_MODEL          = getattr(config, "TINYVIT_MODEL", "tiny_vit_21m_224")
 HARD_NEG_WARMUP        = 5     # epochs before hard mining starts
 HARD_NEG_TOPK          = 10    # top-K hard negatives per anchor
@@ -183,13 +183,11 @@ def train(fold: int = 0, resume_ckpt: Optional[str] = None):
 
     # ── Data ──────────────────────────────────────────────────────────────
     log.info(f"Loading dataset from: {config.DATA_ROOT}")
-    train_loader, val_loader, num_classes = build_kfold_loaders(
-        root        = config.DATA_ROOT,
-        fold        = fold,
-        num_folds   = config.NUM_FOLDS,
-        batch_size  = config.BATCH_SIZE,
-        num_workers = 2,
-        seed        = config.SEED,
+    train_loader, val_loader, num_classes = build_data_loaders(
+        train_data_path     = config.DATA_TRAIN,
+        val_data_path       = config.DATA_VAL,
+        batch_size          = config.BATCH_SIZE,
+        num_workers         = config.NUM_WORKERS,
     )
     log.info(f"Number of classes: {num_classes}")
 
@@ -219,10 +217,10 @@ def train(fold: int = 0, resume_ckpt: Optional[str] = None):
     log.info(f"Building DNNetV2 with {TINYVIT_MODEL} backbone …")
     model = build_model_v2(num_classes=num_classes, cfg=config).to(device)
 
-    scaler = GradScaler()
+    scaler = GradScaler("cuda", init_scale=1024.0) if config.USE_AMP else None
 
     # Phase 1: freeze backbone
-    if FREEZE_BACKBONE_EPOCHS > 0:
+    if config.FREEZE_BACKBONE_EPOCHS > 0:
         model.freeze_backbone()
         log.info(f"Backbone frozen for first {FREEZE_BACKBONE_EPOCHS} epochs.")
 
@@ -292,18 +290,23 @@ def train(fold: int = 0, resume_ckpt: Optional[str] = None):
     # ── Resume ────────────────────────────────────────────────────────────
     start_epoch = 0
     best_rank1  = 0.0
+    patience = max(0, int(getattr(config, "PATIENCE", 0)))
+    no_improve_validations = 0
+    no_improve_training = 0
 
     if resume_ckpt:
         ckpt = load_checkpoint(
             resume_ckpt, model, opt_adam, opt_sgd, sched_adam, sched_sgd, device
         )
-        start_epoch = ckpt["epoch"] + 1
+        start_epoch = ckpt["epoch"]
         best_rank1  = ckpt["metrics"].get("val/rank_1", 0.0)
         log.info(f"Resuming from epoch {start_epoch}  (best rank-1: {best_rank1:.3f}%)")
 
     # ── Training loop ─────────────────────────────────────────────────────
-    ckpt_dir = os.path.join(V2_CHECKPOINT_DIR, f"fold_{fold}")
     log.info(f"Starting training for {config.NUM_EPOCHS} epochs …")
+    if patience > 0:
+        log.info(f"Early stopping enabled: patience={patience} validation(s) without Rank-1 improvement.")
+    ckpt_dir = os.path.join(V2_CHECKPOINT_DIR, f"fold_{fold}")
 
     for epoch in range(start_epoch, config.NUM_EPOCHS):
         t0 = time.time()
@@ -342,7 +345,7 @@ def train(fold: int = 0, resume_ckpt: Optional[str] = None):
 
         # ── Validate ──────────────────────────────────────────────────────
         val_metrics = {}
-        if (epoch + 1) % 5 == 0 or epoch == config.NUM_EPOCHS - 1:
+        if (epoch + 1) % 5 == 0 or epoch == config.NUM_EPOCHS:
             val_metrics = evaluate(
                 model, val_loader, device,
                 rank_k         = config.RANK_K,
@@ -365,6 +368,9 @@ def train(fold: int = 0, resume_ckpt: Optional[str] = None):
             is_best = rank1 > best_rank1
             if is_best:
                 best_rank1 = rank1
+                no_improve_validations = 0
+            else:
+                no_improve_validations += 1
 
             save_checkpoint(
                 checkpoint_dir = ckpt_dir,
@@ -378,6 +384,13 @@ def train(fold: int = 0, resume_ckpt: Optional[str] = None):
                 is_best        = is_best,
                 filename       = f"epoch_{epoch:04d}.pth",
             )
+
+            if patience > 0 and no_improve_validations >= patience:
+                log.info(
+                    f"Early stopping triggered at epoch {epoch:03d}: "
+                    f"no Rank-1 improvement for {no_improve_validations} validation(s)."
+                )
+                break
 
     log.info(f"Training complete.  Best Rank-1: {best_rank1:.3f}%")
     if wandb_run:
