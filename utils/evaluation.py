@@ -19,6 +19,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
 from sklearn.metrics import roc_curve, auc
+from sklearn.metrics import silhouette_score
 
 
 # ── Embedding extraction ──────────────────────────────────────────────────────
@@ -223,6 +224,14 @@ def run_tsne(
     proj = tsne.fit_transform(embeddings)
     return proj, labels
 
+def compute_silhouette_score(
+        embeddings: np.ndarray,
+        labels:     np.ndarray,
+    ) -> Dict[str, float]:
+
+    sil = silhouette_score(embeddings, labels, metric="cosine")
+    results = {'Silhouette score': sil}
+    return results
 
 # ── Master evaluate function ──────────────────────────────────────────────────
 
@@ -243,5 +252,6 @@ def evaluate(
     metrics = {}
     metrics.update(compute_rank_k(embeddings, labels, k_list=rank_k))
     metrics.update(compute_vr_at_far(embeddings, labels, far_thresholds=far_thresholds))
+    metrics.update(compute_silhouette_score(embeddings, labels))
 
     return metrics

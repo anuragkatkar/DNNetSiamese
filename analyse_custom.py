@@ -152,30 +152,41 @@ def plot_similarity_matrix_all(embeddings, labels, label_to_name, matrix_save_pa
     different_distance = np.array([1]) - np.array(different_similarities)
 
     fig, ax = plt.subplots(figsize=(10, 6))
+    
+    counts_s, bins_s, patches_s = ax.hist(same_distance, bins=bins, alpha=0.5, label='Same', color='tab:blue')
+    ax.set_ylabel('Same Count', color='tab:blue')
+    ax.tick_params(axis='y', labelcolor='tab:blue')
 
-    counts_s, bins_s, patches_s = ax.hist(same_distance, bins=bins, alpha=0.5, label='Same')
-    counts_d, bins_d, patches_d = ax.hist(different_distance, bins=bins, alpha=0.5, label='Different')
+    ax2 = ax.twinx()
+    counts_d, bins_d, patches_d = ax2.hist(different_distance, bins=bins, alpha=0.5, label='Different', color='tab:orange')
+    ax2.set_ylabel('Different Count', color='tab:orange')
+    ax2.tick_params(axis='y', labelcolor='tab:orange')
 
     major_positions = np.linspace(0, 1.5, 16)
-    minor_positions = np.linspace(0, 1.5, 151)  # Skip major spots to keep it clean
+    minor_positions = np.linspace(0, 1.5, 151)
 
-    # 2. Tell the axis exactly where to place them
     ax.set_xticks(major_positions, minor=False)
     ax.set_xticks(minor_positions, minor=True)
 
-    # 3. Apply your custom styling
     ax.tick_params(axis='x', which='major', length=10, width=2, labelsize=12)
     ax.tick_params(axis='x', which='minor', length=5, width=1, labelrotation=90)
 
-    ax.axvline(x=0.15, color='red', linestyle=':', linewidth=1.5, label='Threshold')
-    ax.text(x=0.16, y=max(counts_d.max(), counts_s.max())/2, s='Threshold', color='red', rotation=90, va='center')
-    ax.text(x=0.14, y=max(counts_d.max(), counts_s.max())/2, s='0.15', color='red', rotation=90, va='center', ha='center')
 
-    ax.legend()
+    text_y_position = counts_s.max() / 2
+    text_x_position = 0.40
+    ax.axvline(x=text_x_position, color='red', linestyle=':', linewidth=1.5, label='Threshold')
+    ax.text(x=text_x_position + 0.01, y=text_y_position, s='Threshold', color='red', rotation=90, va='center')
+    ax.text(x=text_x_position - 0.01, y=text_y_position, s='0.15', color='red', rotation=90, va='center', ha='center')
+
+    lines_s, labels_s = ax.get_legend_handles_labels()
+    lines_d, labels_d = ax2.get_legend_handles_labels()
+    ax.legend(lines_s + lines_d, labels_s + labels_d, loc='upper right')
+
     plt.title("Similarity Distance Distribution\nSiamese Model")
     plt.tight_layout()
     plt.savefig(distribution_save_path, dpi=150, bbox_inches="tight")
     plt.close()
+
 
     delim = ','
     trim = 0

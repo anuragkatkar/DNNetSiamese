@@ -51,19 +51,6 @@ class Alpha(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stn(x)
-        print('x:', x)
-        y_tensor = x.squeeze(0)
-
-        y_tensor = y_tensor.permute(1, 2, 0)
-
-        y = y_tensor.detach().cpu().numpy().copy()
-
-        y = cv2.cvtColor(y, cv2.COLOR_RGB2BGR)
-
-        print('y:', y)
-        cv2.imwrite("transformed_image.jpg", y)
-        print(y.shape)
-
         x = self.conv(x)
         x = self.flatten(x)
         x = self.linear(x)
